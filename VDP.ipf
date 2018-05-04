@@ -13,9 +13,24 @@ Function VDP_Panel ()
 	if (ItemsinList (WinList ("VDPanel", ";", "")) > 0 )
 		DoWindow /F VDPanel
 		return 0
-	else if (!DataFolderExists(path))
+	elseif (!DataFolderExists(path))
 		VDP_initialize()
 	endif
+	string savedf = getdatafolder (1)
+	SetDataFolder path
 	
+	VDP_initialize()
+	
+	string :MagicBox:com
+	variable :K2600:npoints
+	variable :K2600:nmin
+	variable :K2600:nmax
+	
+	make /d/o data, fitting, resistance, origin, v_r
+	wave data, fitting, resistance, origin, v_r
 		
+End
+
+Function VDP_initialize()
+
 End
