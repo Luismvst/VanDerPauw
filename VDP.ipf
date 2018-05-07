@@ -25,7 +25,8 @@ Function/wave VanDerPauws()
 	SetDataFolder root:VanDerPauw
 
 	wave data, fitting, resistance, Origin, v_r
-	
+	make /d/o fit
+	wave fit
 	variable i
 	for (i = 0; i<8; i+=1) 
 		MBox_Change(com, i+1)
@@ -34,10 +35,18 @@ Function/wave VanDerPauws()
 		if (i<1)
 			concatenate/O {ivResult}, data	// /NP -> prevents promotion to higher dimension
 		else
-			concatenate/NP {ivResult[0]}, data
+			concatenate/NP {ivResult}, data
 		endif
 		
-		CurveFit/Q /W=1 line, data[][0][i] /X=data[][0][i] /D=fitting
+		CurveFit/Q /W=1 line, data[][i] /X=data[][0] /D=fitting
+		
+		if (i<1)
+			concatenate/O {fitting}, fit	// /NP -> prevents promotion to higher dimension
+		else
+			concatenate {fitting}, fit
+		endif
+		
+		Appendtograph /W=VDPanel#VDPGraph fit
 		
 //		string name = "fitting" + num2str(i)
 //		wave fit = $name
