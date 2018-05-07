@@ -1,59 +1,130 @@
 #pragma TextEncoding = "Windows-1252"
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
+#include <FilterDialog> menus=0
 
 Menu "Van der Pauws"
-	"Panel/ç", /Q, VDP_Panel()
-	"Initialize", /Q, VDP_initialize()
-	"Close", /Q, VDP_close()
-end
+	"Pauws Measurement",/Q, VanDerPauws()
+	"Panel/ç", /Q, VDP_Panel ()
+	SubMenu "Pauws Control"
+	"Initialize",/Q, init()
+	"Close Keithley",/Q,  close_K2600()
+	End
+End
 
-Function VDP_Panel ()
+//This function is the main action of the code
+Function/wave VanDerPauws()
 
-	string path = "root:VanDerPauw" 
-	if (ItemsinList (WinList ("VDPanel", ";", "")) > 0 )
-		DoWindow /F VDPanel
-		return 0
-	elseif (!DataFolderExists(path))
-		VDP_initialize()
-	endif
-	string savedf = getdatafolder (1)
-	SetDataFolder path
+	svar com = root:VanDerPauw:MagicBox:com
+	nvar npoints = root:VanDerPauw:K2600:npoints
+	nvar nmin = root:VanDerPauw:K2600:nmin
+	nvar nmax = root:VanDerPauw:K2600:nmax
 	
-	VDP_initialize()
+	variable /G root:VanDerPauw:vr2
+	variable/G root:VanDerPauw:average
+	//VDP_Panel()
+//	wave data = root:VanDerPauw:data
+//	wave results = root:VanDerPauw:results
+//	wave resistance = root:VanDerPauw:resistance
+//	wave origin = root:VanDerPauw:origin
+//	wave v_r = root:VanDerPauw:V_r
 	
-	string :MagicBox:com
-	variable :K2600:npoints
-	variable :K2600:nmin
-	variable :K2600:nmax
+	SetDataFolder root:VanDerPauw
+//	make /d/o/n=(npoints, 2) aux
+//	make /d/o/n=(npoints, 2, 1) data
+//	make /d/o/n=(npoints, 2) fitting
+//	make /d/o Resistance, Origin, V_r
+	wave data, fitting, resistance, Origin, v_r
 	
-	make /d/o data, fitting, resistance, origin, v_r
-	wave data, fitting, resistance, origin, v_r
+	variable i
+	for (i = 0; i<8; i+=1) 
+		MBox_Change(com, i+1)
+		wave aux = IVmeas (nmax, npoints)
+
+		if (i<1)
+			concatenate/O {aux}, data	// /NP -> prevents promotion to higher dimension
+		else
+			concatenate {aux}, data
+		endif
 		
+		//CurveFit/Q line, aux[][0] /X=aux[][1] /D
+		CurveFit/Q /W=1 line, data[][0][i] /X=data[][1][i] /D=fitting
+//		string name = "fitting" + num2str(i)
+//		wave fit = $name
+//		//Appendtograph /W=VDPanel#VDPGraph root:VanDerPauw:fit_ivResult
+////		string wavefit =  stringfromlist ( 0, wavelist ("fit_i*", ";", "") )
+////		wave fitwave = $wavefit
+//		Appendtograph  /W=VDPanel#VDPGraph 	fit
+		Resistance[i] = 1/V_Sigb
+		Origin[i]     = V_Siga
+		V_r[i] 		 = V_r2
+//		
+		ModifyTable /W=VDPanel#VDTable format(Point) = 1
+//		StatsLinearRegression
+	endfor
+	
+	MBox_Change(com, 0)	//Idle state. Disconnected.
+	
+	//Cálculo de VanDerPauws para las 8 pendients caculadas halolar su media 
+	//****/IMPLEMENTAR/****//
+	//average = V_avg
+	
+//	WaveStats/M=1/Q	results		// M=2 is for V_sdev and V_avg	
+//	variable points=DimSize(results,0)
+//	Redimension/N=(points)  Resistance, Origin, V_r
+//	Resistance = results[p][0]
+//	Origin = results[p][1]
+//	V_r = results[p][2]
+	
+	return data
 End
 
-Function VDP_initialize()
+//Initialize both keithley and magic box
+Function init ()
+	string path = "root:VanDerPauw"
+	if(!DatafolderExists(path))
+		genDFolders (path)
+	endif
+	DFRef dfr = $path
+	SetDatafolder dfr
+		
 	init_K2600()
-	init_MBox()
+	init_MBox ()
+	
+	//GetData
+	//nvar	npoints = 	:K2600:npoints 
+	//Dont know if this is quite correct or not (the decision to put this here).
+	
 End
 
-Function init_K2600 ([mode])
-	//mode is used to print on history commands "Keithley has beed initialized"
-	//If mode == 0 -> NO PRINT 
-	variable mode 
-	if (Paramisdefault(mode))
-		mode = 1 
+Function init_K2600([mode])
+	//mode is used to print on history commands that Keithley has been initialized
+	//If mode == 0, NO PRINT
+	variable mode
+	if (paramisdefault(mode))
+		mode=1
 	endif
 	DFRef saveDFR=GetDataFolderDFR()
 	string path = "root:VanDerPauw:K2600"
-	if (!DataFolderExists(path))
-		genDFolders(path)
+	if(!DatafolderExists(path))
+		genDFolders (path)
 	endif
 	DFRef dfr = $path
-	SetDataFolder dfr 
+	SetDatafolder dfr
 	
-	InitBoard _GPIB (0)
-	InitDevice_GPIB (0, 26)
+	variable/G   npoints = 10
+	variable/G 	nmin	= 0
+	variable/G 	nmax  = 0.01	
+	variable/G   counter = 0
 	
+	InitBoard_GPIB(0)
+	InitDevice_GPIB(0,26)
+	
+	
+//	variable/G deviceID=getDeviceID("K2600")
+//	variable/G step, nmin, nmax, forw, puntas, ivlimit, nplc, delay
+//	string/G channel = "A"
+//	step = 0.1; nmin = 0; nmax = 10; forw = 0; puntas = 2; ivlimit = 5; nplc = 1; delay = 1;
+	//pending to catch error
 	if (mode)
 		print "Keithley initialized"
 	endif
@@ -61,36 +132,522 @@ Function init_K2600 ([mode])
 End
 
 Function init_MBox()
-	DFRef saveDFR = GetDataFolderDFR()
+	DFRef saveDFR=GetDataFolderDFR()
 	string path = "root:VanDerPauw:MagicBox"
-	  if (!DataFolderExists(path))
-	  	genDFolders (path)
-	  endif
-	  DFRef dfr = $path
-	  SetDataFolder dfr
-	  
-	  string sports = GetSerialPorts()
-	  string /G com = sports
-	  string /G Device = "MagicBox"
-	  
-	  init_OpenSerial (com, Device)
-	  MBox_Change(com, 0)	//Idle state
-	  SetDataFolder saveDFR
+	if(!DatafolderExists(path))
+		genDFolders (path)
+	endif
+	DFRef dfr = $path
+	SetDatafolder dfr
+	
+	string /G com	= "COM3"
+	string /G Device 	= "MagicBox"
+	
+	init_OpenSerial (com, Device)	
+	MBox_Change(com, 0)	//Idle state. Disconnect.
+	SetDataFolder saveDFR
 End
 
-Function close_K2600 ()
-	DevClearList (0,26)
-end
+//This closes the Keithley 
+Function  close_K2600()
+	DevClearList(0,26)
+End
 
 Function init_OpenSerial (com, Device)
-	
+
 	string com, Device
-	string cmd, DeviceCOmmands
+	string cmd, DeviceCommands
 	variable flag
-	if (StringMatch (Device, "MagicBox")) //Made for spectroscopic, if theres more instruments connected
-		DeviceCOmmands = " baud=1200, stopbits=1, databits=8, parity=0"
+	string/G sports=getSerialPorts()
+		print sports
+	if(StringMatch(Device,"MagicBox"))	//It looks for the Word in the DeviceStr
+		DeviceCommands=" baud=1200, stopbits=1, databits=8, parity=0"
 	endif
-	//Is the port available in the computer?
-	if (WhichListItem(com, sports)!=1)
+		// is the port available in the computer?
+	if (WhichListItem(com,sports)!=-1)
+		cmd = "VDT2 /P=" + com + DeviceCommands
+		Execute cmd
+		cmd = "VDTOperationsPort2 " + com
+		Execute cmd
+		cmd = "VDTOpenPort2 " + com
+		Execute cmd
+		flag = 1
+	else
+		//Error Message with an OK button
+		string smsg="Problem openning port:" +com+". Try the following:\r"
+		smsg+="0.- TURN IT ON!\r"
+		smsg+="1.- Verify is not being used by another program\r"
+		smsg+="2.- Verify the PORT is available in Device Manager (Ports COM). If not, rigth-click and scan hardware changes or disable and enable it.\r"
+		DoAlert /T="Unable to open Serial Port" 0, smsg
+		Abort "Execution aborted.... Restart IGOR"
 	endif
+	return flag 
 end
+
+//This function is where the conmutation takes place
+Function MBox_Change (com, mode)
+	
+	variable mode
+	string com
+	
+	SetDataFolder root:VanDerPauw:
+	
+	string command, cmd
+	command = Change(mode)
+	
+	variable i
+	variable length = strlen (command)
+	
+	//Opening Serial Port -> Optional, not really needed. Ensure Port's working well
+	cmd = "VDTOpenPort2 " + com
+	Execute cmd
+	for (i = 0; i<length; i+=1)
+		VDTWrite2 command[i]
+		delay (100)		//Delay dont really needed, but the PIC and serialport gets a better syncronization
+		//I dont know why i need to close the serial-port to ensure the character is sent
+		cmd = "VDTClosePort2 " + com
+		Execute cmd 
+		if (V_VDT != 1)
+			string str = "Reestart the device and the program"
+			DoAlert /T="Unable to write in serial port", 0, str
+			Abort  "Execution aborted.... Restart IGOR"
+		endif
+	endfor	
+	delay (100) 	
+	//needed for the pic to have time to operate ( USUALLY 1000 MSEC, BUT NOT REALLY TRUE )
+End
+
+Function/S Change(mode) 
+	//There will be 8 different measurings
+	variable mode
+	
+	//		|---------------	|
+	//		|	1*		 *2		|	Representación de las 4 puntas
+	//		|					|	
+	//		|	3*		 *4		|
+	//		|---------------	|
+	
+	switch(mode)
+		case 0: 
+			return "Z"		//Idle state
+		case 1: 
+			return "ZBEKPX"	//I21, V34
+		case 2: 
+			return "ZAFKPX"	//I12, V34
+		case 3: 
+			return "ZBHIOX"	//I24, V13
+		case 4: 
+			return "ZDFIOX"	//I42, V13
+		case 5: 
+			return "ZDGJMX"	//I43, V21
+		case 6: 
+			return "ZCHJMX"	//I34, V21
+		case 7: 
+			return "ZCELNX"	//I31, V42
+		case 8: 
+			return "ZAGLNX"	//I13, V42
+		case 9:
+			return "X" 		//Execution
+		default: 
+			return "ZAFKPDGJM"		//Estado de error
+	endswitch	
+End
+
+//Source current and measure voltage, in 4-probe mode
+Function/wave SweepI_MeasV (imin, imax, npoints, ivResult)
+
+	variable imin
+	variable imax
+	variable npoints
+	wave ivResult
+	
+	variable inc, i
+	
+	string channelI = "a"
+	string channelV = "b"
+	string cmd
+	
+	variable probe=2
+	variable vlimit = 5
+	variable nplc = 1
+	variable delay = 1
+	
+	//Working
+	variable step = (imax-imin)/( npoints-1 )
+	make /free/o/d/n=(npoints) wi
+	wi=imin + step*x
+	variable deviceID = getDeviceID ("K2600")
+	
+	clear_K2600 (deviceID)
+	
+	configK2600_GPIB(deviceID,2,channelI,probe,vlimit,nplc,delay) // 2 (2nd argument) = measure voltage
+	
+	configK2600_GPIB(deviceID,2,channelV,probe,vlimit,nplc,delay) // 2 (2nd argument) = measure voltage
+
+	cmd="smu"+channelI+".source.output = smu"+channelI+".OUTPUT_ON"
+	sendcmd_GPIB(deviceID,cmd)
+	
+	cmd="smu"+channelV+".source.output = smu"+channelV+".OUTPUT_ON"
+	sendcmd_GPIB(deviceID,cmd)	
+	
+	string target
+	for (i=0; i<(npoints); i+=1)
+		inc=wi[i]		
+		cmd="smu"+channelI+".source.leveli = "+num2str(inc)
+		sendcmd_GPIB(deviceID,cmd)
+		
+		cmd="smu"+channelV+".source.leveli = 0.00"
+		sendcmd_GPIB(deviceID,cmd)
+		
+		
+		cmd="print(smu"+channelV+".measure.v(smu"+channelV+".nvbuffer1))"
+		sendcmd_GPIB(deviceID,cmd)
+		GPIBRead2 /Q target
+		ivResult[i][0]=str2num(target)
+	endfor
+	
+	cmd="smu"+channelI+".source.output = smu"+channelI+".OUTPUT_OFF"
+	sendcmd_GPIB(deviceID,cmd)
+
+	cmd="smu"+channelV+".source.output = smu"+channelV+".OUTPUT_OFF"
+	sendcmd_GPIB(deviceID,cmd)	
+	
+	sendcmd_GPIB(deviceID,"smu"+channelI+".reset()")
+	sendcmd_GPIB(deviceID,"smu"+channelV+".reset()")
+	
+	GPIB2 InterfaceClear
+	GPIB2 KillIO
+	
+	ivResult[][1]=wi[p]
+
+	return ivResult
+end
+
+Function clear_K2600(deviceID)
+
+	variable deviceID
+	string channelI = "a"
+	string channelV = "b"
+	
+	string cmd="smu"+channelI+".reset()"
+	sendcmd_GPIB(deviceID,cmd)
+
+	cmd="smu"+channelV+".reset()"
+	sendcmd_GPIB(deviceID,cmd)	
+	
+	
+	cmd="smu"+channelI+".nvbuffer1.clear()"  //Clear buffer, in case it contains something
+	sendcmd_GPIB(deviceID,cmd)
+
+	cmd="smu"+channelI+".nvbuffer2.clear()"  //Clear buffer, in case it contains something
+	sendcmd_GPIB(deviceID,cmd)
+
+
+	cmd="smu"+channelV+".nvbuffer1.clear()"  //Clear buffer, in case it contains something
+	sendcmd_GPIB(deviceID,cmd)
+
+	cmd="smu"+channelV+".nvbuffer2.clear()"  //Clear buffer, in case it contains something
+	sendcmd_GPIB(deviceID,cmd)
+
+end
+
+//Measure IV. Sweep I and measure V
+Function/wave IVmeas (nmax, npoints, [nmin])
+
+	variable nmax, npoints
+	variable nmin
+	if (paramisdefault(nmin))
+		nmin= 0
+	endif
+	if (nmin > nmax )
+		string str = "Reestart the device and the program"
+		DoAlert /T="Error. Nmin > Nmax.", 0, str
+		Abort  "Execution aborted.... Restart IGOR"
+	endif
+	make /O/N = (npoints, 2)	ivResult	
+	ivResult = Nan
+	
+	init_K2600 (mode=0)	//Reset, to be as "clean" as possible
+	sweepI_measV ( nmin, nmax, npoints, ivResult )	
+	
+	return ivResult
+end
+
+Function ButtonProcVDP(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+			// click code here
+			nvar  counter = root:VanDerPauw:K2600:counter
+			variable cuenta
+			nvar  npoints = root:VanDerPauw:K2600:npoints
+			wave data = root:VanDerPauw:data
+			
+			strswitch (ba.ctrlname)			
+			case "buttonMeas":
+				VanDerPauws()
+				break
+			case "buttonClear":
+					//Not sure if graph's name is ok... in general this..
+					//RemovefromGraph /W=VDPGraph data
+					
+				//	RemovefromGraph data[*][1][1] vs data[*][0][1]
+//					RemovefromGraph data[*][1][2] vs data[*][0][2]
+//					RemovefromGraph data[*][1][3] vs data[*][0][3]
+//					RemovefromGraph data[*][1][4] vs data[*][0][4]
+//					RemovefromGraph data[*][1][5] vs data[*][0][5]
+//					RemovefromGraph data[*][1][6] vs data[*][0][6]
+//					RemovefromGraph data[*][1][7] vs data[*][0][7]
+					counter=0
+					Clear()
+				break
+			case "buttonOneMeasure":
+				cuenta = counter
+				print cuenta
+				mediruna(counter)
+				counter+=1
+				cuenta = counter
+				print cuenta
+				break
+			endswitch
+			break
+		case -1: // control being killed
+			break
+	endswitch
+
+	return 0
+End
+
+Function Clear ()
+	
+	DFRef saveDFR=GetDataFolderDFR()
+	string path = "root:VanDerPauw"
+	DFRef dfr = $path
+	SetDatafolder dfr
+	wave data
+	wave Origin
+	wave Resistance
+	wave V_r
+	RemovefromGraph /W=VDPanel#VDPGraph data
+	
+	RemovefromTable /W=VDPanel#VDTable origin
+	RemovefromTable /W=VDPanel#VDTable Resistance
+	RemovefromTable /W=VDPanel#VDTable v_r
+	
+	
+	killwaves data// origin, resistance, v_r
+	
+End
+
+Function VDP_Panel ()
+	
+	string path = "root:VanDerPauw"
+	if (ItemsinList (WinList("VDPanel", ";", "")) > 0)
+		SetDrawLayer /W=VDPanel Progfront
+		DoWindow /F VDPanel
+		return 0
+	elseif (!DatafolderExists(path))
+		init()
+	endif
+	
+	string savedatafolder = GetDataFolder (1)
+	SetDataFolder path
+	
+	//GetData
+	svar	com =		 	:MagicBox:com	// Add Z in the future
+	nvar	npoints = 	:K2600:npoints 
+	nvar	nmin = 		:K2600:nmin
+	nvar	nmax =		 	:K2600:nmax  
+	
+	make /d/o/n=(npoints, 2) aux
+	make /d/o/n=(npoints, 2, 1) data
+	make /d/o/n=(npoints, 2 ) fitting
+	make /d/o Resistance, Origin, V_r
+	wave data, fitting, aux
+	wave Resistance, Origin, V_r	//temporal Waves for the table
+
+	variable axis1, axis2, axis3, axis4
+	axis1 = -0.76
+	axis2 = 5.6
+	axis3 = -0.001
+	axis4 = 0.01
+	PauseUpdate; Silent 1		// building window...
+	
+	//Panel
+	DoWindow /K VDPanel
+	//NewPanel /K=0 /W=(773,53,1273,718) as "VDP Panel"
+	NewPanel /K=0 /W=(750,53,1289,571) as "VDP Panel"
+	DoWindow /C VDPanel
+	
+	//Buttons
+	Button buttonClear, pos={278.00,318.00},size={80.00,30.00}, proc=ButtonProcVDP, title="Clean"
+	Button buttonClear, fSize=12,fColor=(65535,49157,16385)
+	Button buttonMeas, pos={250.00,449.00},size={118.00,47.00}, proc=ButtonProcVDP, title="Measure"
+	Button buttonMeas, fSize=16,fColor=(1,16019,65535)
+	Button buttonOneMeasure,pos={380.00,126.00},size={144.00,23.00},proc=ButtonProcVDP,title="OnlyOneMeasure"
+	Button buttonOneMeasure,fSize=12,fColor=(32792,65535,1)
+	
+	//Table
+	string name = "v_r"
+	wave v_r2 = $name
+	
+	Edit/K=1/W=(28,328,224,497)/HOST=VDPanel Resistance, Origin, V_r2 
+	ModifyTable format(Point)=1,width(Point)=34,format(Resistance)=3,width(Resistance)=60
+	ModifyTable rgb(Resistance)=(65535,0,0),format(Origin)=3,width(Origin)=50,rgb(Origin)=(40000,10000,30000)
+	ModifyTable format(v_r2)=3,width(v_r2)=50,rgb(v_r2)=(10000,50000,20000)
+	ModifyTable showParts=0xa
+	ModifyTable statsArea=85
+	
+	RenameWindow #,VDTable
+	
+	//SetVar
+	SetVariable setvarmaxcurrent,pos={382.00,34.00},size={140.00,18.00},title="Max. Current"
+	SetVariable setvarmaxcurrent,limits={0,0.01,0.001},value= root:VanDerPauw:K2600:nmax
+	SetVariable setvarmincurrent,pos={382.00,58.00},size={140.00,18.00},disable=2,title="Min. Current"
+	SetVariable setvarmincurrent,limits={-0.01,0.01,0.001},value= root:VanDerPauw:K2600:nmin
+	SetVariable setvarpoints,pos={382.00,83.00},size={140.00,18.00},title="Nº of points"
+	SetVariable setvarpoints,limits={0,1,120},value= root:VanDerPauw:K2600:npoints
+	
+	//Text
+	DrawText 255,394,"Total Resistance:"
+	
+	ValDisplay valdisp0,pos={254.00,401.00}, size={89.00,17.00}
+	ValDisplay valdisp0,barmisc={0,100}
+	ValDisplay valdisp0,value= #"root:VanDerPauws:average"
+	
+	//Display	
+	string nameDisplay="VDPanel#VDPGraph"
+	Display/K=1/W=(25,27,360,306)/HOST=VDPanel data[*][1][0] vs data[*][0][0]  	
+	RenameWindow #,VDPGraph
+	Appendtograph/W=$nameDisplay data[*][0][1] vs data[*][1][1] 
+	Appendtograph/W=$nameDisplay data[*][0][2] vs data[*][1][2] 
+	Appendtograph/W=$nameDisplay data[*][0][3] vs data[*][1][3] 
+	Appendtograph/W=$nameDisplay data[*][0][4] vs data[*][1][4] 
+	Appendtograph/W=$nameDisplay data[*][0][5] vs data[*][1][5] 
+	Appendtograph/W=$nameDisplay data[*][0][6] vs data[*][1][6] 
+	Appendtograph/W=$nameDisplay data[*][0][7] vs data[*][1][7] 
+	Label /W=$nameDisplay bottom "Voltage (V)"
+	Label /W=$nameDisplay left "Intensity (A)"	
+//	SetAxis  /W=$nameDisplay left axis3, axis4
+//	SetAxis  /W=$nameDisplay bottom axis1, axis2
+	ModifyGraph  /W=$nameDisplay mirror=1, tick=2, zero=2, minor = 1, mode=3, standoff=0
+	ModifyGraph rgb(data#1)=(65535,65535,0),rgb(data#2)=(0,65535,65535),rgb(data#3)=(65535,0,52428),rgb(data#4)=(39321,1,1),rgb(data#5)=(39321,39321,39321),rgb(data#6)=(0,65535,0),rgb(data#7)=(0,0,0)
+	SetDataFolder savedatafolder
+end
+
+Function/wave MedirUna (num)
+
+	variable num
+	svar com = root:VanDerPauw:MagicBox:com
+	nvar npoints = root:VanDerPauw:K2600:npoints
+	nvar nmin = root:VanDerPauw:K2600:nmin
+	nvar nmax = root:VanDerPauw:K2600:nmax
+	
+	SetDataFolder root:VanDerPauw
+	variable /G root:VanDerPauw:vr2
+	variable/G average
+	VDP_Panel()
+	wave data = root:VanDerPauw:data
+	wave fitting = root:VanDerPauw:fitting
+	wave resistance = root:VanDerPauw:resistance
+	wave origin = root:VanDerPauw:origin
+	wave v_r = root:VanDerPauw:V_r
+	variable i
+	
+//	data = Nan
+//	fitting = Nan
+	
+	for (i = num; i<num+1; i+=1) 
+		MBox_Change(com, i+1)
+		wave aux = IVmeas (nmax, npoints)
+
+		if (i<1)
+			concatenate/O {aux}, data	// /NP -> prevents promotion to higher dimension
+		else
+			concatenate {aux}, data
+		endif
+		
+		
+		CurveFit/Q line, data[][0][i] /X=data[][1][i] /D
+		//Appendtograph /W=VDPanel#VDPGraph root:VanDerPauw:fit_ivResult
+		
+//		string wavefit = wavelist ("fit*", ";", "") + "_" + num2str (i)
+//		wave fitting = $wavefit 
+//		Appendtograph  /W=VDPanel#VDPGraph 	fitting
+		Resistance[i] = 1/V_Sigb
+		Origin[i]     = V_Siga
+		V_r[i] 		 = V_r2
+	//	ModifyTable /W=VDTable format(Point) = 1
+		
+//		StatsLinearRegression
+	endfor
+	
+	//Appendtograph /W=VDPanel#VDPGraph root:VanDerPauw:fitting
+	MBox_Change(com, 0)	//Idle state. Disconnected.
+	
+	//Cálculo de VanDerPauws para las 8 pendients caculadas halolar su media 
+	//****/IMPLEMENTAR/****//
+	//average = V_avg
+	
+	return data
+End
+
+Window VDPanel() : Panel
+	PauseUpdate; Silent 1		// building window...
+	NewPanel /W=(750,53,1289,571) as "VDP Panel"
+	SetDrawLayer UserBack
+	DrawText 255,394,"Total Resistance:"
+	Button buttonClear,pos={278.00,318.00},size={80.00,30.00},proc=ButtonProcVDP,title="Clean"
+	Button buttonClear,fSize=12,fColor=(65535,49157,16385)
+	Button buttonMeas,pos={250.00,449.00},size={118.00,47.00},proc=ButtonProcVDP,title="Measure"
+	Button buttonMeas,fSize=16,fColor=(1,16019,65535)
+	ValDisplay valdisp0,pos={254.00,401.00},size={89.00,17.00}
+	ValDisplay valdisp0,limits={0,0,0},barmisc={0,100}
+	ValDisplay valdisp0,value= #"root:VanDerPauws:average"
+	SetVariable setvarmaxcurrent,pos={382.00,34.00},size={140.00,18.00},title="Max. Current"
+	SetVariable setvarmaxcurrent,limits={0,0.01,0.001},value= root:VanDerPauw:K2600:nmax
+	SetVariable setvarmincurrent,pos={382.00,58.00},size={140.00,18.00},disable=2,title="Min. Current"
+	SetVariable setvarmincurrent,limits={-0.01,0.01,0.001},value= root:VanDerPauw:K2600:nmin
+	SetVariable setvarpoints,pos={382.00,83.00},size={140.00,18.00},title="Nº of points"
+	SetVariable setvarpoints,limits={-0.01,0.01,0.001},value= root:VanDerPauw:K2600:npoints
+	Button buttonOneMeasure,pos={380.00,126.00},size={144.00,23.00},proc=ButtonProcVDP,title="OnlyOneMeasure"
+	Button buttonOneMeasure,fSize=12,fColor=(32792,65535,1)
+	String fldrSav0= GetDataFolder(1)
+	SetDataFolder root:VanDerPauw:
+	Edit/W=(28,328,224,497)/HOST=#  Resistance,Origin,V_r2
+	ModifyTable format(Point)=1,width(Point)=34,format(Resistance)=3,width(Resistance)=60
+	ModifyTable rgb(Resistance)=(65535,0,0),format(Origin)=3,width(Origin)=50,rgb(Origin)=(40000,10000,30000)
+	ModifyTable format(V_r)=3,width(V_r)=50,rgb(V_r)=(10000,50000,20000)
+	ModifyTable showParts=0xa
+	ModifyTable statsArea=85
+	SetDataFolder fldrSav0
+	RenameWindow #,VDTable
+	SetActiveSubwindow ##
+	String fldrSav1= GetDataFolder(1)
+	SetDataFolder root:VanDerPauw:
+	Display/W=(25,27,360,306)/HOST=#  data[*][1][0] vs data[*][0][0]
+	AppendToGraph data[*][0][1] vs data[*][1][1]
+	AppendToGraph data[*][0][2] vs data[*][1][2]
+	AppendToGraph data[*][0][3] vs data[*][1][3]
+	AppendToGraph data[*][0][4] vs data[*][1][4]
+	AppendToGraph data[*][0][5] vs data[*][1][5]
+	AppendToGraph data[*][0][6] vs data[*][1][6]
+	AppendToGraph data[*][0][7] vs data[*][1][7]
+	AppendToGraph fit_data
+	SetDataFolder fldrSav1
+	ModifyGraph mode(data)=3,mode(data#1)=3,mode(data#2)=3,mode(data#3)=3,mode(data#4)=3
+	ModifyGraph mode(data#5)=3,mode(data#6)=3,mode(data#7)=3
+	ModifyGraph rgb(data#1)=(65535,65535,0),rgb(data#2)=(0,65535,65535),rgb(data#3)=(65535,0,52428)
+	ModifyGraph rgb(data#4)=(39321,1,1),rgb(data#5)=(39321,39321,39321),rgb(data#6)=(0,65535,0)
+	ModifyGraph rgb(data#7)=(0,0,0)
+	ModifyGraph tick=2
+	ModifyGraph zero=2
+	ModifyGraph mirror=1
+	ModifyGraph minor=1
+	ModifyGraph standoff=0
+	ModifyGraph axOffset(left)=-4
+	Label left "Intensity (A)"
+	Label bottom "Voltage (V)"
+	RenameWindow #,VDPGraph
+	SetActiveSubwindow ##
+EndMacro
