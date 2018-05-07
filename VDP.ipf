@@ -19,14 +19,14 @@ Function/wave VanDerPauws()
 	nvar nmin = root:VanDerPauw:K2600:nmin
 	nvar nmax = root:VanDerPauw:K2600:nmax
 	
-	variable /G root:VanDerPauw:vr2	//this one i dont remember why
-	variable/G root:VanDerPauw:result
+	//variable /G root:VanDerPauw:vr2	//this one i dont remember why
 		
 	SetDataFolder root:VanDerPauw
 
 	wave data, fitting, resistance, Origin, v_r
 	make /d/o fit
 	wave fit
+	variable/G result
 	variable i
 	for (i = 0; i<8; i+=1) 
 		MBox_Change(com, i+1)
@@ -40,6 +40,7 @@ Function/wave VanDerPauws()
 		
 		CurveFit/Q /W=1 line, data[][i] /X=data[][0] /D=fitting
 		
+		//This fit&fitting part is just visual for graphing.
 		if (i<1)
 			concatenate/O {fitting}, fit	// /NP -> prevents promotion to higher dimension
 		else
@@ -64,20 +65,41 @@ Function/wave VanDerPauws()
 	
 	MBox_Change(com, 0)	//Idle state. Disconnected.
 	
-	//Cálculo de VanDerPauws para las 8 pendients caculadas halolar su media 
-	//****/IMPLEMENTAR/****//
-	//result = V_avg
-	
-//	WaveStats/M=1/Q	results		// M=2 is for V_sdev and V_avg	
-//	variable points=DimSize(results,0)
-//	Redimension/N=(points)  Resistance, Origin, V_r
-//	Resistance = results[p][0]
-//	Origin = results[p][1]
-//	V_r = results[p][2]
-	
+	//Cálculo de VanDerPauws para las 8 pendientes
+	result = VDP_Calculo()
+		
 	return data
 End
 
+Function VDP_Calculo ()
+
+	wave Resistance, coefs
+	variable Rv, Rh, Rs
+	//Rvertical = (3 + 4 + 7 + 8) / 4
+	//Rhorizontal = (1 + 2 + 5 + 6) / 4
+	//Equation -> e^(-pi*Rvertical/Rs) + e^(-pi*Rhorizontal/Rs) = 1
+	
+	Rv = (Resistance[2] + Resistance[3] + Resistance[6] + Resistance[7])/4 
+	Rh = (Resistance[0] + Resistance[1] + Resistance[4] + Resistance[5])/4	
+
+	coefs={Rv, Rh}
+ 	FindRoots/Q MyFunc, coefs
+ 	Rs = V_Root
+ 	
+ 	return Rs 	
+end
+
+Function MyFunc (w, x)
+	
+	wave w
+	variable x
+	
+	//Return root value for f(x) = 0
+	return ( exp (-PI*w[0]/x ) + exp (-PI*w[1]/x ) ) - 1 
+
+end
+	
+End
 //Initialize both keithley and magic box
 Function init ()
 	init_K2600()
@@ -206,33 +228,39 @@ Function/S Change(mode)
 	//		|---------------	|
 	//		|	1*		 *2		|	Representación de las 4 puntas
 	//		|					|	
-	//		|	3*		 *4		|
+	//		|	4*		 *3		|
 	//		|---------------	|
 	
 	switch(mode)
 		case 0: 
 			return "Z"		//Idle state
-		case 1: 
-			return "ZBEKPX"	//I21, V34
-		case 2: 
-			return "ZAFKPX"	//I12, V34
-		case 3: 
-			return "ZBHIOX"	//I24, V13
-		case 4: 
-			return "ZDFIOX"	//I42, V13
-		case 5: 
-			return "ZDGJMX"	//I43, V21
-		case 6: 
-			return "ZCHJMX"	//I34, V21
-		case 7: 
-			return "ZCELNX"	//I31, V42
-		case 8: 
-			return "ZAGLNX"	//I13, V42
+		case 1: //R21,43
+			return "ZBEKPX"	//I21, V43
+		case 2: //R12,43
+			return "ZAFKPX"	//I12, V43
+		case 3: //R23,14
+			return "ZBHIOX"	//I23, V14
+		case 4: //R32,14
+			return "ZDFIOX"	//I32, V14
+		case 5: //R34,21
+			return "ZDGJMX"	//I34, V21
+		case 6: //R43,21
+			return "ZCHJMX"	//I43, V21
+		case 7: //R41,32
+			return "ZCELNX"	//I41, V32
+		case 8: //R14,32
+			return "ZAGLNX"	//I14, V32
 		case 9:
 			return "X" 		//Execution
 		default: 
 			return "ZAFKPDGJM"		//Estado de error
 	endswitch	
+	
+	//Calcululation VDP following "mode"
+	//Rvertical = (3 + 4 + 7 + 8) / 4
+	//Rhorizontal = (1 + 2 + 5 + 6) / 4
+	//Equation -> e^(-pi*Rvertical/Rs) + e^(-pi*Rhorizontal/Rs) = 1
+	
 End
 
 //Source current and measure voltage, in 4-probe mode
