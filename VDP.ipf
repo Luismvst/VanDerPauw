@@ -19,35 +19,26 @@ Function/wave VanDerPauws()
 	nvar nmin = root:VanDerPauw:K2600:nmin
 	nvar nmax = root:VanDerPauw:K2600:nmax
 	
-	variable /G root:VanDerPauw:vr2
-	variable/G root:VanDerPauw:average
-	//VDP_Panel()
-//	wave data = root:VanDerPauw:data
-//	wave results = root:VanDerPauw:results
-//	wave resistance = root:VanDerPauw:resistance
-//	wave origin = root:VanDerPauw:origin
-//	wave v_r = root:VanDerPauw:V_r
-	
+	variable /G root:VanDerPauw:vr2	//this one i dont remember why
+	variable/G root:VanDerPauw:result
+		
 	SetDataFolder root:VanDerPauw
-//	make /d/o/n=(npoints, 2) aux
-//	make /d/o/n=(npoints, 2, 1) data
-//	make /d/o/n=(npoints, 2) fitting
-//	make /d/o Resistance, Origin, V_r
+
 	wave data, fitting, resistance, Origin, v_r
 	
 	variable i
 	for (i = 0; i<8; i+=1) 
 		MBox_Change(com, i+1)
-		wave aux = IVmeas (nmax, npoints)
-
+		IVmeas (nmax, npoints)
+		wave ivResult
 		if (i<1)
-			concatenate/O {aux}, data	// /NP -> prevents promotion to higher dimension
+			concatenate/O {ivResult}, data	// /NP -> prevents promotion to higher dimension
 		else
-			concatenate {aux}, data
+			concatenate/NP {ivResult[0]}, data
 		endif
 		
-		//CurveFit/Q line, aux[][0] /X=aux[][1] /D
-		CurveFit/Q /W=1 line, data[][0][i] /X=data[][1][i] /D=fitting
+		CurveFit/Q /W=1 line, data[][0][i] /X=data[][0][i] /D=fitting
+		
 //		string name = "fitting" + num2str(i)
 //		wave fit = $name
 //		//Appendtograph /W=VDPanel#VDPGraph root:VanDerPauw:fit_ivResult
@@ -58,7 +49,7 @@ Function/wave VanDerPauws()
 		Origin[i]     = V_Siga
 		V_r[i] 		 = V_r2
 //		
-		ModifyTable /W=VDPanel#VDTable format(Point) = 1
+		//ModifyTable /W=VDPanel#VDTable format(Point) = 1
 //		StatsLinearRegression
 	endfor
 	
@@ -66,7 +57,7 @@ Function/wave VanDerPauws()
 	
 	//Cálculo de VanDerPauws para las 8 pendients caculadas halolar su media 
 	//****/IMPLEMENTAR/****//
-	//average = V_avg
+	//result = V_avg
 	
 //	WaveStats/M=1/Q	results		// M=2 is for V_sdev and V_avg	
 //	variable points=DimSize(results,0)
@@ -80,20 +71,8 @@ End
 
 //Initialize both keithley and magic box
 Function init ()
-	string path = "root:VanDerPauw"
-	if(!DatafolderExists(path))
-		genDFolders (path)
-	endif
-	DFRef dfr = $path
-	SetDatafolder dfr
-		
 	init_K2600()
 	init_MBox ()
-	
-	//GetData
-	//nvar	npoints = 	:K2600:npoints 
-	//Dont know if this is quite correct or not (the decision to put this here).
-	
 End
 
 Function init_K2600([mode])
@@ -111,20 +90,14 @@ Function init_K2600([mode])
 	DFRef dfr = $path
 	SetDatafolder dfr
 	
+	InitBoard_GPIB(0)
+	InitDevice_GPIB(0,26)
+	
 	variable/G   npoints = 10
 	variable/G 	nmin	= 0
 	variable/G 	nmax  = 0.01	
 	variable/G   counter = 0
 	
-	InitBoard_GPIB(0)
-	InitDevice_GPIB(0,26)
-	
-	
-//	variable/G deviceID=getDeviceID("K2600")
-//	variable/G step, nmin, nmax, forw, puntas, ivlimit, nplc, delay
-//	string/G channel = "A"
-//	step = 0.1; nmin = 0; nmax = 10; forw = 0; puntas = 2; ivlimit = 5; nplc = 1; delay = 1;
-	//pending to catch error
 	if (mode)
 		print "Keithley initialized"
 	endif
@@ -204,7 +177,7 @@ Function MBox_Change (com, mode)
 	for (i = 0; i<length; i+=1)
 		VDTWrite2 command[i]
 		delay (100)		//Delay dont really needed, but the PIC and serialport gets a better syncronization
-		//I dont know why i need to close the serial-port to ensure the character is sent
+		//I close the serial-port to ensure the character is sent
 		cmd = "VDTClosePort2 " + com
 		Execute cmd 
 		if (V_VDT != 1)
@@ -318,7 +291,7 @@ Function/wave SweepI_MeasV (imin, imax, npoints, ivResult)
 	GPIB2 InterfaceClear
 	GPIB2 KillIO
 	
-	ivResult[][1]=wi[p]
+//	ivResult[][1]=wi[p] -> I take the X values from other side
 
 	return ivResult
 end
@@ -365,7 +338,6 @@ Function/wave IVmeas (nmax, npoints, [nmin])
 		Abort  "Execution aborted.... Restart IGOR"
 	endif
 	make /O/N = (npoints, 2)	ivResult	
-	ivResult = Nan
 	
 	init_K2600 (mode=0)	//Reset, to be as "clean" as possible
 	sweepI_measV ( nmin, nmax, npoints, ivResult )	
@@ -379,7 +351,6 @@ Function ButtonProcVDP(ba) : ButtonControl
 		case 2: // mouse up
 			// click code here
 			nvar  counter = root:VanDerPauw:K2600:counter
-			variable cuenta
 			nvar  npoints = root:VanDerPauw:K2600:npoints
 			wave data = root:VanDerPauw:data
 			
@@ -402,12 +373,8 @@ Function ButtonProcVDP(ba) : ButtonControl
 					Clear()
 				break
 			case "buttonOneMeasure":
-				cuenta = counter
-				print cuenta
 				mediruna(counter)
 				counter+=1
-				cuenta = counter
-				print cuenta
 				break
 			endswitch
 			break
@@ -459,18 +426,13 @@ Function VDP_Panel ()
 	nvar	nmin = 		:K2600:nmin
 	nvar	nmax =		 	:K2600:nmax  
 	
-	make /d/o/n=(npoints, 2) aux
-	make /d/o/n=(npoints, 2, 1) data
-	make /d/o/n=(npoints, 2 ) fitting
-	make /d/o Resistance, Origin, V_r
-	wave data, fitting, aux
-	wave Resistance, Origin, V_r	//temporal Waves for the table
+	make /d/o aux, data, fitting, Resistance, Origin, Vr2
+//	make /d/o/n=(npoints, 2) aux
+//	make /d/o/n=(npoints, 2, 1) data
+//	make /d/o/n=(npoints, 2 ) fitting
+//	make /d/o Resistance, Origin, V_r
+	wave data, fitting, aux, Resistance, Origin, V_r	//temporal Waves for the table
 
-	variable axis1, axis2, axis3, axis4
-	axis1 = -0.76
-	axis2 = 5.6
-	axis3 = -0.001
-	axis4 = 0.01
 	PauseUpdate; Silent 1		// building window...
 	
 	//Panel
@@ -513,7 +475,7 @@ Function VDP_Panel ()
 	
 	ValDisplay valdisp0,pos={254.00,401.00}, size={89.00,17.00}
 	ValDisplay valdisp0,barmisc={0,100}
-	ValDisplay valdisp0,value= #"root:VanDerPauws:average"
+	ValDisplay valdisp0,value= #"root:VanDerPauws:result"
 	
 	//Display	
 	string nameDisplay="VDPanel#VDPGraph"
@@ -528,8 +490,6 @@ Function VDP_Panel ()
 	Appendtograph/W=$nameDisplay data[*][0][7] vs data[*][1][7] 
 	Label /W=$nameDisplay bottom "Voltage (V)"
 	Label /W=$nameDisplay left "Intensity (A)"	
-//	SetAxis  /W=$nameDisplay left axis3, axis4
-//	SetAxis  /W=$nameDisplay bottom axis1, axis2
 	ModifyGraph  /W=$nameDisplay mirror=1, tick=2, zero=2, minor = 1, mode=3, standoff=0
 	ModifyGraph rgb(data#1)=(65535,65535,0),rgb(data#2)=(0,65535,65535),rgb(data#3)=(65535,0,52428),rgb(data#4)=(39321,1,1),rgb(data#5)=(39321,39321,39321),rgb(data#6)=(0,65535,0),rgb(data#7)=(0,0,0)
 	SetDataFolder savedatafolder
@@ -545,7 +505,7 @@ Function/wave MedirUna (num)
 	
 	SetDataFolder root:VanDerPauw
 	variable /G root:VanDerPauw:vr2
-	variable/G average
+	variable/G result
 	VDP_Panel()
 	wave data = root:VanDerPauw:data
 	wave fitting = root:VanDerPauw:fitting
@@ -587,7 +547,7 @@ Function/wave MedirUna (num)
 	
 	//Cálculo de VanDerPauws para las 8 pendients caculadas halolar su media 
 	//****/IMPLEMENTAR/****//
-	//average = V_avg
+	//result = V_avg
 	
 	return data
 End
@@ -603,7 +563,7 @@ Window VDPanel() : Panel
 	Button buttonMeas,fSize=16,fColor=(1,16019,65535)
 	ValDisplay valdisp0,pos={254.00,401.00},size={89.00,17.00}
 	ValDisplay valdisp0,limits={0,0,0},barmisc={0,100}
-	ValDisplay valdisp0,value= #"root:VanDerPauws:average"
+	ValDisplay valdisp0,value= #"root:VanDerPauws:result"
 	SetVariable setvarmaxcurrent,pos={382.00,34.00},size={140.00,18.00},title="Max. Current"
 	SetVariable setvarmaxcurrent,limits={0,0.01,0.001},value= root:VanDerPauw:K2600:nmax
 	SetVariable setvarmincurrent,pos={382.00,58.00},size={140.00,18.00},disable=2,title="Min. Current"
