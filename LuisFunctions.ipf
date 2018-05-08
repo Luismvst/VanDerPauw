@@ -4,11 +4,12 @@
 
 Menu "Functions_Luis"
 	"MagicBoxParty",/Q, MBox_Party()
+	"Init",/Q, init_OpenSerial("COM3", "MagicBox")
 End 
 
 Function MBox_Party ()
 
-	string com = "COM2"
+	string com = "COM3"
 	string Device = "MagicBox"
 	if (init_OpenSerial (com, Device))
 		//print Device + " Initialized"
