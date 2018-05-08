@@ -4,12 +4,12 @@
 
 Menu "Functions_Luis"
 	"MagicBoxParty",/Q, MBox_Party()
-	"Init",/Q, init_OpenSerial("COM3", "MagicBox")
+	"Init",/Q, init_OpenSerial("COM4", "MagicBox")
 End 
 
 Function MBox_Party ()
 
-	string com = "COM3"
+	string com = "COM4"
 	string Device = "MagicBox"
 	if (init_OpenSerial (com, Device))
 		//print Device + " Initialized"
@@ -67,17 +67,17 @@ Function MBox_Change (com, mode)
 	Execute cmd
 	for (i = 0; i<length; i+=1)
 		VDTWrite2 command[i]
-		delay (100)		//Delay dont really needed, but the PIC and serialport gets a better syncronization
+//		delay (10)		//Delay dont really needed, but the PIC and serialport gets a better syncronization
 		//I close the serial-port to ensure the character is sent
 		cmd = "VDTClosePort2 " + com
 		Execute cmd 
 		if (V_VDT != 1)
-			string str = "Reestart the device and the program"
+			string str = "Reestart  the device and the program"
 			DoAlert /T="Unable to write in serial port", 0, str
 			Abort  "Execution aborted.... Restart IGOR"
 		endif
 	endfor	
-	delay (100) 	
+//	delay (10) 	
 	//needed for the pic to have time to operate ( USUALLY 1000 MSEC, BUT NOT REALLY TRUE )
 End
 
