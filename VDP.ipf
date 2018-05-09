@@ -23,29 +23,33 @@ Function/wave VanDerPauws()
 		
 	SetDataFolder root:VanDerPauw
 
-	wave data, fitting, resistance, Origin, v_r
-	make /d/o fit
-	wave fit
+	wave data, fitting, resistance, Origin, v_r, increment
 	variable/G result
 	variable i
-	for (i = 0; i<8; i+=1) 
-		MBox_Change(com, i+1)
-		IVmeas (nmax, npoints)
-		wave ivResult
-		if (i<1)
-			concatenate/O {ivResult}, data	// /NP -> prevents promotion to higher dimension
-		else
-			concatenate/NP {ivResult}, data
+	WAVEClear data, resistance, origin, v_r
+	for (i = 0; i<3; i+=1) 
+		MBox_Change(com, i+1)		
+		wave ivResult //= IVmeas (nmax, npoints)
+//		if (i<1)
+//			concatenate/O {increment}, data
+//			concatenate   {ivResult}, data	 // /NP -> prevents promotion to higher dimension                 
+//		else
+//			concatenate	 {ivResult}, data
+//		endif
+		if (i<1) 
+			data[*][0]=increment;
 		endif
+		data[*][i+1]=ivResult
 		
-		CurveFit/Q /W=1 line, data[][i] /X=data[][0] /D=fitting
+		CurveFit/Q /W=1 line, data[][i+1] /X=data[][0] /D=fitting
 		
 		//This fit&fitting part is just visual for graphing.
-		if (i<1)
-			concatenate/O {fitting}, fit	// /NP -> prevents promotion to higher dimension
-		else
-			concatenate {fitting}, fit
-		endif
+//		if (i<1)
+//			concatenate/O {fitting}, fit	// /NP -> prevents promotion to higher dimension
+//		else
+//			concatenate {fitting}, fit
+//		endif
+		concatenate {fitting}, fit
 		
 		Appendtograph /W=VDPanel#VDPGraph fit
 		
@@ -102,7 +106,7 @@ end
 End
 //Initialize both keithley and magic box
 Function init ()
-	init_K2600()
+	//init_K2600()
 	init_MBox ()
 End
 
@@ -144,7 +148,7 @@ Function init_MBox()
 	DFRef dfr = $path
 	SetDatafolder dfr
 	
-	string /G com	= "COM3"
+	string /G com	= "COM4"
 	string /G Device 	= "MagicBox"
 	
 	init_OpenSerial (com, Device)	
@@ -284,8 +288,9 @@ Function/wave SweepI_MeasV (imin, imax, npoints, ivResult)
 	
 	//Working
 	variable step = (imax-imin)/( npoints-1 )
-	make /free/o/d/n=(npoints) wi
-	wi=imin + step*x
+	make /o/d/n=(10) increment
+	wave increment
+	//wi=imin + step*x
 	variable deviceID = getDeviceID ("K2600")
 	
 	clear_K2600 (deviceID)
@@ -302,7 +307,7 @@ Function/wave SweepI_MeasV (imin, imax, npoints, ivResult)
 	
 	string target
 	for (i=0; i<(npoints); i+=1)
-		inc=wi[i]		
+		inc=imin + step*	i
 		cmd="smu"+channelI+".source.leveli = "+num2str(inc)
 		sendcmd_GPIB(deviceID,cmd)
 		
@@ -313,7 +318,8 @@ Function/wave SweepI_MeasV (imin, imax, npoints, ivResult)
 		cmd="print(smu"+channelV+".measure.v(smu"+channelV+".nvbuffer1))"
 		sendcmd_GPIB(deviceID,cmd)
 		GPIBRead2 /Q target
-		ivResult[i][0]=str2num(target)
+		ivResult[i]=str2num(target)
+		increment[i] = inc
 	endfor
 	
 	cmd="smu"+channelI+".source.output = smu"+channelI+".OUTPUT_OFF"
@@ -327,8 +333,6 @@ Function/wave SweepI_MeasV (imin, imax, npoints, ivResult)
 	
 	GPIB2 InterfaceClear
 	GPIB2 KillIO
-	
-//	ivResult[][1]=wi[p] -> I take the X values from other side
 
 	return ivResult
 end
@@ -409,10 +413,10 @@ Function ButtonProcVDP(ba) : ButtonControl
 					counter=0
 					Clear()
 				break
-			case "buttonOneMeasure":
-				mediruna(counter)
-				counter+=1
-				break
+//			case "buttonOneMeasure":
+//				mediruna(counter)
+//				counter+=1
+//				break
 			endswitch
 			break
 		case -1: // control being killed
@@ -428,33 +432,26 @@ Function Clear ()
 	string path = "root:VanDerPauw"
 	DFRef dfr = $path
 	SetDatafolder dfr
-	wave data
-	wave Origin
-	wave Resistance
-	wave V_r
+	wave fitting, fit, Resistance, Origin, V_r, data
 	RemovefromGraph /W=VDPanel#VDPGraph data
-	
-	RemovefromTable /W=VDPanel#VDTable origin
-	RemovefromTable /W=VDPanel#VDTable Resistance
-	RemovefromTable /W=VDPanel#VDTable v_r
-	
-	
-	killwaves data// origin, resistance, v_r
+	data = 0; resistance = 0; fitting = 0; fit = 0; origin = 0; v_r= 0;
 	
 End
 
 Function VDP_Panel ()
 	
 	string path = "root:VanDerPauw"
-	if (ItemsinList (WinList("VDPanel", ";", "")) > 0)
-		SetDrawLayer /W=VDPanel Progfront
-		DoWindow /F VDPanel
-		return 0
-	elseif (!DatafolderExists(path))
-		init()
-	endif
-	
 	string savedatafolder = GetDataFolder (1)
+	if(!DatafolderExists(path))
+		string smsg = "You have to initialize first.\n"
+		smsg += "Do you want to initialize?\n"
+		DoAlert /T="Unable to open the program" 1, smsg
+		if (V_flag == 2)		//Clock No
+			Abort "Execution aborted.... Restart IGOR"
+		elseif (V_flag == 1)	//Click yes
+			init()
+		endif
+	endif
 	SetDataFolder path
 	
 	//GetData
@@ -463,13 +460,16 @@ Function VDP_Panel ()
 	nvar	nmin = 		:K2600:nmin
 	nvar	nmax =		 	:K2600:nmax  
 	
-	make /d/o aux, data, fitting, Resistance, Origin, Vr2
-//	make /d/o/n=(npoints, 2) aux
-//	make /d/o/n=(npoints, 2, 1) data
-//	make /d/o/n=(npoints, 2 ) fitting
-//	make /d/o Resistance, Origin, V_r
-	wave data, fitting, aux, Resistance, Origin, V_r	//temporal Waves for the table
-
+	make /d/o/n=(10, 2) data, fit
+	make /d/o/n=(10) fitting, Resistance, Origin, V_r
+	wave data, fitting, Resistance, Origin, V_r	//temporal Waves for the table
+	data = 0; resistance = 0; fitting = 0; fit = 0; origin = 0; v_r= 0;
+	if (ItemsinList (WinList("VDPanel", ";", "")) > 0)
+		SetDrawLayer /W=VDPanel Progfront
+		DoWindow /F VDPanel
+		return 0
+	endif
+	
 	PauseUpdate; Silent 1		// building window...
 	
 	//Panel
@@ -483,8 +483,8 @@ Function VDP_Panel ()
 	Button buttonClear, fSize=12,fColor=(65535,49157,16385)
 	Button buttonMeas, pos={250.00,449.00},size={118.00,47.00}, proc=ButtonProcVDP, title="Measure"
 	Button buttonMeas, fSize=16,fColor=(1,16019,65535)
-	Button buttonOneMeasure,pos={380.00,126.00},size={144.00,23.00},proc=ButtonProcVDP,title="OnlyOneMeasure"
-	Button buttonOneMeasure,fSize=12,fColor=(32792,65535,1)
+//	Button buttonOneMeasure,pos={380.00,126.00},size={144.00,23.00},proc=ButtonProcVDP,title="OnlyOneMeasure"
+//	Button buttonOneMeasure,fSize=12,fColor=(32792,65535,1)
 	
 	//Table
 	string name = "v_r"
@@ -532,62 +532,60 @@ Function VDP_Panel ()
 	SetDataFolder savedatafolder
 end
 
-Function/wave MedirUna (num)
-
-	variable num
-	svar com = root:VanDerPauw:MagicBox:com
-	nvar npoints = root:VanDerPauw:K2600:npoints
-	nvar nmin = root:VanDerPauw:K2600:nmin
-	nvar nmax = root:VanDerPauw:K2600:nmax
-	
-	SetDataFolder root:VanDerPauw
-	variable /G root:VanDerPauw:vr2
-	variable/G result
-	VDP_Panel()
-	wave data = root:VanDerPauw:data
-	wave fitting = root:VanDerPauw:fitting
-	wave resistance = root:VanDerPauw:resistance
-	wave origin = root:VanDerPauw:origin
-	wave v_r = root:VanDerPauw:V_r
-	variable i
-	
-//	data = Nan
-//	fitting = Nan
-	
-	for (i = num; i<num+1; i+=1) 
-		MBox_Change(com, i+1)
-		wave aux = IVmeas (nmax, npoints)
-
-		if (i<1)
-			concatenate/O {aux}, data	// /NP -> prevents promotion to higher dimension
-		else
-			concatenate {aux}, data
-		endif
-		
-		
-		CurveFit/Q line, data[][0][i] /X=data[][1][i] /D
-		//Appendtograph /W=VDPanel#VDPGraph root:VanDerPauw:fit_ivResult
-		
-//		string wavefit = wavelist ("fit*", ";", "") + "_" + num2str (i)
-//		wave fitting = $wavefit 
-//		Appendtograph  /W=VDPanel#VDPGraph 	fitting
-		Resistance[i] = 1/V_Sigb
-		Origin[i]     = V_Siga
-		V_r[i] 		 = V_r2
-	//	ModifyTable /W=VDTable format(Point) = 1
-		
-//		StatsLinearRegression
-	endfor
-	
-	//Appendtograph /W=VDPanel#VDPGraph root:VanDerPauw:fitting
-	MBox_Change(com, 0)	//Idle state. Disconnected.
-	
-	//Cálculo de VanDerPauws para las 8 pendients caculadas halolar su media 
-	//****/IMPLEMENTAR/****//
-	//result = V_avg
-	
-	return data
-End
+//Function/wave MedirUna (num)
+//
+//	variable num
+//	svar com = root:VanDerPauw:MagicBox:com
+//	nvar npoints = root:VanDerPauw:K2600:npoints
+//	nvar nmin = root:VanDerPauw:K2600:nmin
+//	nvar nmax = root:VanDerPauw:K2600:nmax
+//	
+//	SetDataFolder root:VanDerPauw
+//	variable /G root:VanDerPauw:vr2
+//	variable/G result
+//	VDP_Panel()
+//	wave data = root:VanDerPauw:data
+//	wave fitting = root:VanDerPauw:fitting
+//	wave resistance = root:VanDerPauw:resistance
+//	wave origin = root:VanDerPauw:origin
+//	wave v_r = root:VanDerPauw:V_r
+//	variable i
+//	
+//	
+//	for (i = num; i<num+1; i+=1) 
+//		MBox_Change(com, i+1)
+//		wave aux = IVmeas (nmax, npoints)
+//
+//		if (i<1)
+//			concatenate/O {aux}, data	// /NP -> prevents promotion to higher dimension
+//		else
+//			concatenate {aux}, data
+//		endif
+//		
+//		
+//		CurveFit/Q line, data[][0][i] /X=data[][1][i] /D
+//		//Appendtograph /W=VDPanel#VDPGraph root:VanDerPauw:fit_ivResult
+//		
+////		string wavefit = wavelist ("fit*", ";", "") + "_" + num2str (i)
+////		wave fitting = $wavefit 
+////		Appendtograph  /W=VDPanel#VDPGraph 	fitting
+//		Resistance[i] = 1/V_Sigb
+//		Origin[i]     = V_Siga
+//		V_r[i] 		 = V_r2
+//	//	ModifyTable /W=VDTable format(Point) = 1
+//		
+////		StatsLinearRegression
+//	endfor
+//	
+//	//Appendtograph /W=VDPanel#VDPGraph root:VanDerPauw:fitting
+//	MBox_Change(com, 0)	//Idle state. Disconnected.
+//	
+//	//Cálculo de VanDerPauws para las 8 pendients caculadas halolar su media 
+//	//****/IMPLEMENTAR/****//
+//	//result = V_avg
+//	
+//	return data
+//End
 
 Window VDPanel() : Panel
 	PauseUpdate; Silent 1		// building window...
