@@ -3,9 +3,7 @@
 #include <FilterDialog> menus=0
 
 Menu "Van der Pauws"
-	"Pauws Measurement",/Q, VanDerPauws()
 	"Panel/ç", /Q, VDP_Panel ()
-	SubMenu "Pauws Control"
 	"Initialize",/Q, init()
 	"Close Keithley",/Q,  close_K2600()
 	End
