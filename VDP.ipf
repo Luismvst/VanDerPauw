@@ -22,11 +22,13 @@ Function/wave VanDerPauws()
 	SetDataFolder root:VanDerPauw
 	nvar result
 	wave data, Resistance, Origin, V_r, increment
-	
+	clear()
 	variable i
 //	WAVEClear data, Resistance, Origin, V_r
 	for (i = 0; i<8; i+=1) 
-		MBox_Change(com, i+1)		
+		if (i == 0 )
+			MBox_Change(com,2)	
+		endif
 		wave ivResult = IVmeas (nmax, npoints)
 		if (i<1)
 			concatenate/O {increment}, data
@@ -52,7 +54,7 @@ Function/wave VanDerPauws()
 	endfor
 	string nameDisplay = "VDPanel#VDPGraph"
 	Appendtograph/W=$nameDisplay /C=(65535,65535,0)		data[*][0] vs data[*][2] 
-	Appendtograph/W=$nameDisplay /C=(0,65535,65535)		data[*][0] vs data[*][3] 
+	Appendtograph/W=$nameDisplay /C=(0,0,65535)			data[*][0] vs data[*][3] 
 	Appendtograph/W=$nameDisplay /C=(65535,0,52428)		data[*][0] vs data[*][4] 
 	Appendtograph/W=$nameDisplay /C=(39321,1,1)			data[*][0] vs data[*][5] 
 	Appendtograph/W=$nameDisplay /C=(39321,39321,39321)	data[*][0] vs data[*][6] 
@@ -245,7 +247,7 @@ Function/S Change(mode)
 		case 8: //R14,32
 			return "ZAGLNX"	//I14, V32
 		case 9:
-			return "X" 		//Execution
+			return "" 		//Nothing
 		default: 
 			return "ZAFKPDGJM"		//Estado de error
 	endswitch	
@@ -407,12 +409,33 @@ Function Clear ()
 	SetDatafolder dfr
 	wave fit, Resistance, Origin, V_r, data, ivResult
 	nvar result
-	dosomething()
+	variable i
+	for (i=0; i<10; i+=1)
+		RemoveAllTraces()
+	endfor
+		
 	data = 0; resistance = 0; fit = 0; origin = 0; v_r= 0; ivResult = 0; result = 0; 
 	Redimension /N=-1 data, resistance, fit
-	
+ 	
 	
 End
+
+function RemoveAllTraces ()
+	string df = "root:VanDerPauw"
+	String CurrentDF = GetDataFolder(1)
+	SetDataFolder $df
+	variable i
+	do 
+		string listatraces = tracenamelist("VDPanel#VDPGraph", ";", 1)
+		string trace = stringfromlist (i, listatraces)
+		if (strlen(trace)==0)
+			break
+		endif
+		removefromgraph /W=VDPanel#VDPGraph $trace
+		i+=1
+	while(1)	
+	SetdataFolder $CurrentDF
+end
 
 Function VDP_Panel ()
 	
@@ -498,8 +521,6 @@ Function VDP_Panel ()
 	Label /W=$nameDisplay bottom "Voltage (V)"
 	Label /W=$nameDisplay left "Intensity (A)"	
 	ModifyGraph  /W=$nameDisplay mirror=1, tick=2, zero=2, minor = 1, mode=3, standoff=0
-	//rgb(data#7)=(0,0,0)
-	//ModifyGraph rgb(data#1)=(65535,65535,0),rgb(data#2)=(0,65535,65535),rgb(data#3)=(65535,0,52428),rgb(data#4)=(39321,1,1),rgb(data#5)=(39321,39321,39321),rgb(data#6)=(0,65535,0),rgb(data#7)=(0,0,0)
 	SetDataFolder savedatafolder
 end
 
@@ -618,31 +639,3 @@ Window VDPanel() : Panel
 	SetActiveSubwindow ##
 EndMacro
 
-function DoSomething()
-	string df = "root:VanDerPauw"
- 
-	String CurrentDF = GetDataFolder(1)
-	SetDataFolder $df
- 
-	String allNormalTraces=TraceNameList("",";",1)
-	String CurrentWave = "" 
-	Variable i
- 
-	do 	
-		CurrentWave = StringFromList(i, allnormaltraces)
-		if (Strlen(CurrentWave) == 0)		// no more waves
-			break	//Exit loop when finishing
-		else 
-			RemoveFromGraph /W=VDPanel#VDPGraph CurrentWave
-		endif
- 
-//		if (i==0)
-//			Display $CurrentWave
-//		else
-//			AppendToGraph $CurrentWave
-//		endif
-		i +=1
-	while(1)
- 
-	SetdataFolder $CurrentDF
-end
