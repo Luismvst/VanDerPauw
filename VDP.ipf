@@ -20,27 +20,23 @@ Function/wave VanDerPauws()
 	SetDataFolder root:VanDerPauw
 	nvar result
 	wave data, Resistance, Origin, V_r, increment
-	clear()
+//	clear()
 	variable i
-//	WAVEClear data, Resistance, Origin, V_r
 	for (i = 0; i<8; i+=1) 
+//	MBox_Change(com,i) 		
 		if (i == 0 )
 			MBox_Change(com,2)	
 		endif
 		wave ivResult = IVmeas (nmax, npoints)
-		if (i<1)
-			concatenate/O {increment}, data
-			concatenate   {ivResult}, data                 
-		else
-			concatenate	 {ivResult}, data
-		endif
-//		data[*][i+1]=ivResult[p]
-		CurveFit/Q /W=1 line, data[][i+1] /X=data[][0] /D
-		wave fitting = $"fit_data"
+		if (i==0)
+			concatenate/O {increment}, data  
+		endif              
+		concatenate	 {ivResult}, data
+		CurveFit/Q /W=1 line, data[][i+1] /X=data[][0] /D	//Fit_data is created with /D
 		if(i<1)
-			concatenate/O {fitting}, fit
+			concatenate/O {$"fit_data"}, fit
 		else 
-			concatenate {fitting}, fit
+			concatenate {$"fit_data"}, fit
 		endif
 		//Appendtograph /W=VDPanel#VDPGraph data[][0] vs fit[][i]
 		 
@@ -48,8 +44,8 @@ Function/wave VanDerPauws()
 		Origin[i]     = V_Siga
 		V_r[i] 		 = V_r2
 		
-	//		StatsLinearRegression
 	endfor
+	
 	string nameDisplay = "VDPanel#VDPGraph"
 	Appendtograph/W=$nameDisplay /C=(65535,65535,0)		data[*][0] vs data[*][2] 
 	Appendtograph/W=$nameDisplay /C=(0,0,65535)			data[*][0] vs data[*][3] 
@@ -57,7 +53,7 @@ Function/wave VanDerPauws()
 	Appendtograph/W=$nameDisplay /C=(39321,1,1)			data[*][0] vs data[*][5] 
 	Appendtograph/W=$nameDisplay /C=(39321,39321,39321)	data[*][0] vs data[*][6] 
 	Appendtograph/W=$nameDisplay /C=(0,65535,0)			data[*][0] vs data[*][7]
-	ModifyGraph  /W=$nameDisplay mirror=1, tick=2, zero=2, minor = 1, mode=3, standoff=0
+//	ModifyGraph  /W=$nameDisplay mirror=1, tick=2, zero=2, minor = 1, mode=3, standoff=0
 	MBox_Change(com, 0)	//Idle state. Disconnected.
 	
 	//Cálculo de VanDerPauws para las 8 pendientes
