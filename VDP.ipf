@@ -18,55 +18,46 @@ Function/wave VanDerPauws()
 	nvar npoints = root:VanDerPauw:K2600:npoints
 	nvar nmin = root:VanDerPauw:K2600:nmin
 	nvar nmax = root:VanDerPauw:K2600:nmax
-	
-	//variable /G root:VanDerPauw:vr2	//this one i dont remember why
 		
 	SetDataFolder root:VanDerPauw
-
-	wave data, fitting, resistance, Origin, v_r, increment
-	variable/G result
+	nvar result
+	wave data, Resistance, Origin, V_r, increment
+	
 	variable i
-	WAVEClear data, resistance, origin, v_r
-	for (i = 0; i<3; i+=1) 
+//	WAVEClear data, Resistance, Origin, V_r
+	for (i = 0; i<8; i+=1) 
 		MBox_Change(com, i+1)		
-		wave ivResult //= IVmeas (nmax, npoints)
-//		if (i<1)
-//			concatenate/O {increment}, data
-//			concatenate   {ivResult}, data	 // /NP -> prevents promotion to higher dimension                 
-//		else
-//			concatenate	 {ivResult}, data
-//		endif
-		if (i<1) 
-			data[*][0]=increment;
+		wave ivResult = IVmeas (nmax, npoints)
+		if (i<1)
+			concatenate/O {increment}, data
+			concatenate   {ivResult}, data                 
+		else
+			concatenate	 {ivResult}, data
 		endif
-		data[*][i+1]=ivResult
-		
-		CurveFit/Q /W=1 line, data[][i+1] /X=data[][0] /D=fitting
-		
-		//This fit&fitting part is just visual for graphing.
-//		if (i<1)
-//			concatenate/O {fitting}, fit	// /NP -> prevents promotion to higher dimension
-//		else
-//			concatenate {fitting}, fit
-//		endif
-		concatenate {fitting}, fit
-		
-		Appendtograph /W=VDPanel#VDPGraph fit
-		
-//		string name = "fitting" + num2str(i)
-//		wave fit = $name
-//		//Appendtograph /W=VDPanel#VDPGraph root:VanDerPauw:fit_ivResult
-////		string wavefit =  stringfromlist ( 0, wavelist ("fit_i*", ";", "") )
-////		wave fitwave = $wavefit
-//		Appendtograph  /W=VDPanel#VDPGraph 	fit
+//		data[*][i+1]=ivResult[p]
+		CurveFit/Q /W=1 line, data[][i+1] /X=data[][0] /D
+		wave fitting = $"fit_data"
+		if(i<1)
+			concatenate/O {fitting}, fit
+		else 
+			concatenate {fitting}, fit
+		endif
+		//Appendtograph /W=VDPanel#VDPGraph data[][0] vs fit[][i]
+		 
 		Resistance[i] = 1/V_Sigb
 		Origin[i]     = V_Siga
 		V_r[i] 		 = V_r2
-//		
-		//ModifyTable /W=VDPanel#VDTable format(Point) = 1
-//		StatsLinearRegression
+		
+	//		StatsLinearRegression
 	endfor
-	
+	string nameDisplay = "VDPanel#VDPGraph"
+	Appendtograph/W=$nameDisplay /C=(65535,65535,0)		data[*][0] vs data[*][2] 
+	Appendtograph/W=$nameDisplay /C=(0,65535,65535)		data[*][0] vs data[*][3] 
+	Appendtograph/W=$nameDisplay /C=(65535,0,52428)		data[*][0] vs data[*][4] 
+	Appendtograph/W=$nameDisplay /C=(39321,1,1)			data[*][0] vs data[*][5] 
+	Appendtograph/W=$nameDisplay /C=(39321,39321,39321)	data[*][0] vs data[*][6] 
+	Appendtograph/W=$nameDisplay /C=(0,65535,0)			data[*][0] vs data[*][7]
+	ModifyGraph  /W=$nameDisplay mirror=1, tick=2, zero=2, minor = 1, mode=3, standoff=0
 	MBox_Change(com, 0)	//Idle state. Disconnected.
 	
 	//Cálculo de VanDerPauws para las 8 pendientes
@@ -106,7 +97,7 @@ end
 End
 //Initialize both keithley and magic box
 Function init ()
-	//init_K2600()
+	init_K2600()
 	init_MBox ()
 End
 
@@ -131,7 +122,6 @@ Function init_K2600([mode])
 	variable/G   npoints = 10
 	variable/G 	nmin	= 0
 	variable/G 	nmax  = 0.01	
-	variable/G   counter = 0
 	
 	if (mode)
 		print "Keithley initialized"
@@ -148,7 +138,7 @@ Function init_MBox()
 	DFRef dfr = $path
 	SetDatafolder dfr
 	
-	string /G com	= "COM4"
+	string /G com	= "COM5"
 	string /G Device 	= "MagicBox"
 	
 	init_OpenSerial (com, Device)	
@@ -378,7 +368,7 @@ Function/wave IVmeas (nmax, npoints, [nmin])
 		DoAlert /T="Error. Nmin > Nmax.", 0, str
 		Abort  "Execution aborted.... Restart IGOR"
 	endif
-	make /O/N = (npoints, 2)	ivResult	
+	make /O/N = (npoints)	ivResult	
 	
 	init_K2600 (mode=0)	//Reset, to be as "clean" as possible
 	sweepI_measV ( nmin, nmax, npoints, ivResult )	
@@ -390,8 +380,6 @@ Function ButtonProcVDP(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
 	switch( ba.eventCode )
 		case 2: // mouse up
-			// click code here
-			nvar  counter = root:VanDerPauw:K2600:counter
 			nvar  npoints = root:VanDerPauw:K2600:npoints
 			wave data = root:VanDerPauw:data
 			
@@ -400,23 +388,8 @@ Function ButtonProcVDP(ba) : ButtonControl
 				VanDerPauws()
 				break
 			case "buttonClear":
-					//Not sure if graph's name is ok... in general this..
-					//RemovefromGraph /W=VDPGraph data
-					
-				//	RemovefromGraph data[*][1][1] vs data[*][0][1]
-//					RemovefromGraph data[*][1][2] vs data[*][0][2]
-//					RemovefromGraph data[*][1][3] vs data[*][0][3]
-//					RemovefromGraph data[*][1][4] vs data[*][0][4]
-//					RemovefromGraph data[*][1][5] vs data[*][0][5]
-//					RemovefromGraph data[*][1][6] vs data[*][0][6]
-//					RemovefromGraph data[*][1][7] vs data[*][0][7]
-					counter=0
 					Clear()
 				break
-//			case "buttonOneMeasure":
-//				mediruna(counter)
-//				counter+=1
-//				break
 			endswitch
 			break
 		case -1: // control being killed
@@ -432,16 +405,19 @@ Function Clear ()
 	string path = "root:VanDerPauw"
 	DFRef dfr = $path
 	SetDatafolder dfr
-	wave fitting, fit, Resistance, Origin, V_r, data
-	RemovefromGraph /W=VDPanel#VDPGraph data
-	data = 0; resistance = 0; fitting = 0; fit = 0; origin = 0; v_r= 0;
+	wave fit, Resistance, Origin, V_r, data, ivResult
+	nvar result
+	dosomething()
+	data = 0; resistance = 0; fit = 0; origin = 0; v_r= 0; ivResult = 0; result = 0; 
+	Redimension /N=-1 data, resistance, fit
+	
 	
 End
 
 Function VDP_Panel ()
 	
 	string path = "root:VanDerPauw"
-	string savedatafolder = GetDataFolder (1)
+	string savedatafolder = GetDataFolder (1) 
 	if(!DatafolderExists(path))
 		string smsg = "You have to initialize first.\n"
 		smsg += "Do you want to initialize?\n"
@@ -460,10 +436,13 @@ Function VDP_Panel ()
 	nvar	nmin = 		:K2600:nmin
 	nvar	nmax =		 	:K2600:nmax  
 	
-	make /d/o/n=(10, 2) data, fit
-	make /d/o/n=(10) fitting, Resistance, Origin, V_r
+	make /d/o/n=(10) data
+	make /d/o/n=(8) Resistance, Origin, V_r
+	make /d/o fit, fitting
+	make /d/o/n=2 coefs
 	wave data, fitting, Resistance, Origin, V_r	//temporal Waves for the table
-	data = 0; resistance = 0; fitting = 0; fit = 0; origin = 0; v_r= 0;
+	variable/G result
+	data = 0; resistance = 0; fitting = 0; fit = 0; origin = 0; v_r= 0; coefs=0;
 	if (ItemsinList (WinList("VDPanel", ";", "")) > 0)
 		SetDrawLayer /W=VDPanel Progfront
 		DoWindow /F VDPanel
@@ -483,8 +462,6 @@ Function VDP_Panel ()
 	Button buttonClear, fSize=12,fColor=(65535,49157,16385)
 	Button buttonMeas, pos={250.00,449.00},size={118.00,47.00}, proc=ButtonProcVDP, title="Measure"
 	Button buttonMeas, fSize=16,fColor=(1,16019,65535)
-//	Button buttonOneMeasure,pos={380.00,126.00},size={144.00,23.00},proc=ButtonProcVDP,title="OnlyOneMeasure"
-//	Button buttonOneMeasure,fSize=12,fColor=(32792,65535,1)
 	
 	//Table
 	string name = "v_r"
@@ -512,23 +489,17 @@ Function VDP_Panel ()
 	
 	ValDisplay valdisp0,pos={254.00,401.00}, size={89.00,17.00}
 	ValDisplay valdisp0,barmisc={0,100}
-	ValDisplay valdisp0,value= #"root:VanDerPauws:result"
+	ValDisplay valdisp0,value=#"root:VanDerPauw:result"
 	
 	//Display	
 	string nameDisplay="VDPanel#VDPGraph"
-	Display/K=1/W=(25,27,360,306)/HOST=VDPanel data[*][1][0] vs data[*][0][0]  	
+	Display/K=1/W=(25,27,360,306)/HOST=VDPanel data[*][0] vs data[*][1] 	
 	RenameWindow #,VDPGraph
-	Appendtograph/W=$nameDisplay data[*][0][1] vs data[*][1][1] 
-	Appendtograph/W=$nameDisplay data[*][0][2] vs data[*][1][2] 
-	Appendtograph/W=$nameDisplay data[*][0][3] vs data[*][1][3] 
-	Appendtograph/W=$nameDisplay data[*][0][4] vs data[*][1][4] 
-	Appendtograph/W=$nameDisplay data[*][0][5] vs data[*][1][5] 
-	Appendtograph/W=$nameDisplay data[*][0][6] vs data[*][1][6] 
-	Appendtograph/W=$nameDisplay data[*][0][7] vs data[*][1][7] 
 	Label /W=$nameDisplay bottom "Voltage (V)"
 	Label /W=$nameDisplay left "Intensity (A)"	
 	ModifyGraph  /W=$nameDisplay mirror=1, tick=2, zero=2, minor = 1, mode=3, standoff=0
-	ModifyGraph rgb(data#1)=(65535,65535,0),rgb(data#2)=(0,65535,65535),rgb(data#3)=(65535,0,52428),rgb(data#4)=(39321,1,1),rgb(data#5)=(39321,39321,39321),rgb(data#6)=(0,65535,0),rgb(data#7)=(0,0,0)
+	//rgb(data#7)=(0,0,0)
+	//ModifyGraph rgb(data#1)=(65535,65535,0),rgb(data#2)=(0,65535,65535),rgb(data#3)=(65535,0,52428),rgb(data#4)=(39321,1,1),rgb(data#5)=(39321,39321,39321),rgb(data#6)=(0,65535,0),rgb(data#7)=(0,0,0)
 	SetDataFolder savedatafolder
 end
 
@@ -646,3 +617,32 @@ Window VDPanel() : Panel
 	RenameWindow #,VDPGraph
 	SetActiveSubwindow ##
 EndMacro
+
+function DoSomething()
+	string df = "root:VanDerPauw"
+ 
+	String CurrentDF = GetDataFolder(1)
+	SetDataFolder $df
+ 
+	String allNormalTraces=TraceNameList("",";",1)
+	String CurrentWave = "" 
+	Variable i
+ 
+	do 	
+		CurrentWave = StringFromList(i, allnormaltraces)
+		if (Strlen(CurrentWave) == 0)		// no more waves
+			break	//Exit loop when finishing
+		else 
+			RemoveFromGraph /W=VDPanel#VDPGraph CurrentWave
+		endif
+ 
+//		if (i==0)
+//			Display $CurrentWave
+//		else
+//			AppendToGraph $CurrentWave
+//		endif
+		i +=1
+	while(1)
+ 
+	SetdataFolder $CurrentDF
+end
