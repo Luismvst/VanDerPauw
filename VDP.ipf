@@ -20,10 +20,10 @@ Function/wave VanDerPauws()
 	SetDataFolder root:VanDerPauw
 	nvar result
 	wave data, Resistance, Origin, V_r, increment
-//	clear()
+	
 	variable i
 	for (i = 0; i<8; i+=1) 
-//	MBox_Change(com,i) 		
+//	MBox_Change(com,i) 	
 		if (i == 0 )
 			MBox_Change(com,2)	
 		endif
@@ -45,15 +45,6 @@ Function/wave VanDerPauws()
 		V_r[i] 		 = V_r2
 		
 	endfor
-	
-	string nameDisplay = "VDPanel#VDPGraph"
-	Appendtograph/W=$nameDisplay /C=(65535,65535,0)		data[*][0] vs data[*][2] 
-	Appendtograph/W=$nameDisplay /C=(0,0,65535)			data[*][0] vs data[*][3] 
-	Appendtograph/W=$nameDisplay /C=(65535,0,52428)		data[*][0] vs data[*][4] 
-	Appendtograph/W=$nameDisplay /C=(39321,1,1)			data[*][0] vs data[*][5] 
-	Appendtograph/W=$nameDisplay /C=(39321,39321,39321)	data[*][0] vs data[*][6] 
-	Appendtograph/W=$nameDisplay /C=(0,65535,0)			data[*][0] vs data[*][7]
-//	ModifyGraph  /W=$nameDisplay mirror=1, tick=2, zero=2, minor = 1, mode=3, standoff=0
 	MBox_Change(com, 0)	//Idle state. Disconnected.
 	
 	//Cálculo de VanDerPauws para las 8 pendientes
@@ -384,7 +375,7 @@ Function ButtonProcVDP(ba) : ButtonControl
 				VanDerPauws()
 				break
 			case "buttonClear":
-					Clear()
+				Clear()
 				break
 			endswitch
 			break
@@ -407,11 +398,18 @@ Function Clear ()
 	for (i=0; i<10; i+=1)
 		RemoveAllTraces()
 	endfor
-		
+	
+	string nameDisplay="VDPanel#VDPGraph"
+//	Appendtograph/W=VDPGraph /C=(65535,65535,0)		data[*][1] vs data[*][0] 
+//	Label /W=$nameDisplay bottom "Voltage (V)"
+//	Label /W=$nameDisplay left "Intensity (A)"	
+
 	data = 0; resistance = 0; fit = 0; origin = 0; v_r= 0; ivResult = 0; result = 0; 
 	Redimension /N=-1 data, resistance, fit
+//	ModifyGraph  /W=$nameDisplay mirror=1, tick=2, zero=2, minor = 1, mode=3, standoff=0
+	initPanel()
+	SetDataFolder saveDFR
  	
-	
 End
 
 function RemoveAllTraces ()
@@ -447,25 +445,33 @@ Function VDP_Panel ()
 	endif
 	SetDataFolder path
 	
-	//GetData
+	//GetData 
 	svar	com =		 	:MagicBox:com	// Add Z in the future
 	nvar	npoints = 	:K2600:npoints 
 	nvar	nmin = 		:K2600:nmin
-	nvar	nmax =		 	:K2600:nmax  
-	
+	nvar	nmax =		 	:K2600:nmax 
 	make /d/o/n=(10) data
 	make /d/o/n=(8) Resistance, Origin, V_r
 	make /d/o fit, fitting
 	make /d/o/n=2 coefs
-	wave data, fitting, Resistance, Origin, V_r	//temporal Waves for the table
+	
 	variable/G result
 	data = 0; resistance = 0; fitting = 0; fit = 0; origin = 0; v_r= 0; coefs=0;
+	
 	if (ItemsinList (WinList("VDPanel", ";", "")) > 0)
 		SetDrawLayer /W=VDPanel Progfront
 		DoWindow /F VDPanel
 		return 0
 	endif
 	
+	initPanel()
+	SetDataFolder savedatafolder
+end
+
+Function initPanel()
+	wave data, fitting, Resistance, Origin, V_r	//temporal Waves for the table
+	nvar result 
+
 	PauseUpdate; Silent 1		// building window...
 	
 	//Panel
@@ -512,12 +518,17 @@ Function VDP_Panel ()
 	string nameDisplay="VDPanel#VDPGraph"
 	Display/K=1/W=(25,27,360,306)/HOST=VDPanel data[*][0] vs data[*][1] 	
 	RenameWindow #,VDPGraph
+	Appendtograph/W=$nameDisplay /C=(65535,65535,0)		data[*][2] vs data[*][0] 
+	Appendtograph/W=$nameDisplay /C=(0,0,65535)			data[*][3] vs data[*][0] 
+	Appendtograph/W=$nameDisplay /C=(65535,0,52428)		data[*][4] vs data[*][0] 
+	Appendtograph/W=$nameDisplay /C=(39321,1,1)			data[*][5] vs data[*][0]  
+	Appendtograph/W=$nameDisplay /C=(39321,39321,39321)	data[*][6] vs data[*][0] 
+	Appendtograph/W=$nameDisplay /C=(0,65535,0)			data[*][7] vs data[*][0]
 	Label /W=$nameDisplay bottom "Voltage (V)"
 	Label /W=$nameDisplay left "Intensity (A)"	
 	ModifyGraph  /W=$nameDisplay mirror=1, tick=2, zero=2, minor = 1, mode=3, standoff=0
-	SetDataFolder savedatafolder
-end
-
+	
+End
 //Function/wave MedirUna (num)
 //
 //	variable num
