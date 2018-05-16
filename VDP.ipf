@@ -1,25 +1,30 @@
 #pragma TextEncoding = "Windows-1252"
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
 #include <FilterDialog> menus=0
+#include "gpibcom"
+#include "serialcom"
+#include "IV_Lab_v1"
 
 Menu "Van der Pauws"
+	//ctrl + 'ç' Displays the Panel
 	"Panel/ç", /Q, VDP_Panel ()
 	"Initialize",/Q, init()
 	"Close Keithley",/Q,  close_K2600()
 	End
 End
 
-//This function is the main action of the code
-Function/wave VanDerPauws()
+//This function is the main of the code
+Function VanDerPauws()
 
 	svar com = root:VanDerPauw:MagicBox:com
 	nvar npoints = root:VanDerPauw:K2600:npoints
 	nvar nmin = root:VanDerPauw:K2600:nmin
 	nvar nmax = root:VanDerPauw:K2600:nmax
 		
+	string savedPath = GetDataFolder(1)
 	SetDataFolder root:VanDerPauw
 	nvar result
-	wave data, Resistance, Origin, V_r, increment
+	wave data, Resistance, Origin, V_r, increment, fit
 	
 	variable i
 	for (i = 0; i<8; i+=1) 
@@ -32,7 +37,7 @@ Function/wave VanDerPauws()
 			concatenate/O {increment}, data  
 		endif              
 		concatenate	 {ivResult}, data
-		CurveFit/Q /W=1 line, data[][i+1] /X=data[][0] /D	//Fit_data is created with /D
+		CurveFit/Q /W=1 line, data[][i+1] /X=data[][0] /D	//fit_data is created with /D
 		if(i<1)
 			concatenate/O {$"fit_data"}, fit
 		else 
@@ -50,11 +55,11 @@ Function/wave VanDerPauws()
 	//Cálculo de VanDerPauws para las 8 pendientes
 	result = VDP_Calculo()
 		
-	return data
+	SetDataFolder $savedPath
 End
 
+//************************************************************************************************//
 Function VDP_Calculo ()
-
 	wave Resistance, coefs
 	variable Rv, Rh, Rs
 	//Rvertical = (3 + 4 + 7 + 8) / 4
@@ -71,17 +76,15 @@ Function VDP_Calculo ()
  	return Rs 	
 end
 
-Function MyFunc (w, x)
-	
+Function MyFunc (w, x)	
 	wave w
 	variable x
 	
 	//Return root value for f(x) = 0
-	return ( exp (-PI*w[0]/x ) + exp (-PI*w[1]/x ) ) - 1 
-
-end
-	
+	return ( exp (-PI*w[0]/x ) + exp (-PI*w[1]/x ) ) - 1 	
 End
+//************************************************************************************************//
+
 //Initialize both keithley and magic box
 Function init ()
 	init_K2600()
@@ -168,6 +171,7 @@ Function init_OpenSerial (com, Device)
 	endif
 	return flag 
 end
+//************************************************************************************************//
 
 //This function is where the conmutation takes place
 Function MBox_Change (com, mode)
@@ -236,13 +240,8 @@ Function/S Change(mode)
 		default: 
 			return "ZAFKPDGJM"		//Estado de error
 	endswitch	
-	
-	//Calcululation VDP following "mode"
-	//Rvertical = (3 + 4 + 7 + 8) / 4
-	//Rhorizontal = (1 + 2 + 5 + 6) / 4
-	//Equation -> e^(-pi*Rvertical/Rs) + e^(-pi*Rhorizontal/Rs) = 1
-	
 End
+//************************************************************************************************//
 
 //Source current and measure voltage, in 4-probe mode
 Function/wave SweepI_MeasV (imin, imax, npoints, ivResult)
@@ -452,11 +451,11 @@ Function VDP_Panel ()
 	nvar	nmax =		 	:K2600:nmax 
 	make /d/o/n=(10) data
 	make /d/o/n=(8) Resistance, Origin, V_r
-	make /d/o fit, fitting
+	make /d/o fit
 	make /d/o/n=2 coefs
 	
 	variable/G result
-	data = 0; resistance = 0; fitting = 0; fit = 0; origin = 0; v_r= 0; coefs=0;
+	data = 0; resistance = 0; fit = 0; origin = 0; v_r= 0; coefs=0;
 	
 	if (ItemsinList (WinList("VDPanel", ";", "")) > 0)
 		SetDrawLayer /W=VDPanel Progfront
@@ -469,7 +468,7 @@ Function VDP_Panel ()
 end
 
 Function initPanel()
-	wave data, fitting, Resistance, Origin, V_r	//temporal Waves for the table
+	wave data, fit, Resistance, Origin, V_r	//temporal Waves for the table
 	nvar result 
 
 	PauseUpdate; Silent 1		// building window...
@@ -529,118 +528,3 @@ Function initPanel()
 	ModifyGraph  /W=$nameDisplay mirror=1, tick=2, zero=2, minor = 1, mode=3, standoff=0
 	
 End
-//Function/wave MedirUna (num)
-//
-//	variable num
-//	svar com = root:VanDerPauw:MagicBox:com
-//	nvar npoints = root:VanDerPauw:K2600:npoints
-//	nvar nmin = root:VanDerPauw:K2600:nmin
-//	nvar nmax = root:VanDerPauw:K2600:nmax
-//	
-//	SetDataFolder root:VanDerPauw
-//	variable /G root:VanDerPauw:vr2
-//	variable/G result
-//	VDP_Panel()
-//	wave data = root:VanDerPauw:data
-//	wave fitting = root:VanDerPauw:fitting
-//	wave resistance = root:VanDerPauw:resistance
-//	wave origin = root:VanDerPauw:origin
-//	wave v_r = root:VanDerPauw:V_r
-//	variable i
-//	
-//	
-//	for (i = num; i<num+1; i+=1) 
-//		MBox_Change(com, i+1)
-//		wave aux = IVmeas (nmax, npoints)
-//
-//		if (i<1)
-//			concatenate/O {aux}, data	// /NP -> prevents promotion to higher dimension
-//		else
-//			concatenate {aux}, data
-//		endif
-//		
-//		
-//		CurveFit/Q line, data[][0][i] /X=data[][1][i] /D
-//		//Appendtograph /W=VDPanel#VDPGraph root:VanDerPauw:fit_ivResult
-//		
-////		string wavefit = wavelist ("fit*", ";", "") + "_" + num2str (i)
-////		wave fitting = $wavefit 
-////		Appendtograph  /W=VDPanel#VDPGraph 	fitting
-//		Resistance[i] = 1/V_Sigb
-//		Origin[i]     = V_Siga
-//		V_r[i] 		 = V_r2
-//	//	ModifyTable /W=VDTable format(Point) = 1
-//		
-////		StatsLinearRegression
-//	endfor
-//	
-//	//Appendtograph /W=VDPanel#VDPGraph root:VanDerPauw:fitting
-//	MBox_Change(com, 0)	//Idle state. Disconnected.
-//	
-//	//Cálculo de VanDerPauws para las 8 pendients caculadas halolar su media 
-//	//****/IMPLEMENTAR/****//
-//	//result = V_avg
-//	
-//	return data
-//End
-
-Window VDPanel() : Panel
-	PauseUpdate; Silent 1		// building window...
-	NewPanel /W=(750,53,1289,571) as "VDP Panel"
-	SetDrawLayer UserBack
-	DrawText 255,394,"Total Resistance:"
-	Button buttonClear,pos={278.00,318.00},size={80.00,30.00},proc=ButtonProcVDP,title="Clean"
-	Button buttonClear,fSize=12,fColor=(65535,49157,16385)
-	Button buttonMeas,pos={250.00,449.00},size={118.00,47.00},proc=ButtonProcVDP,title="Measure"
-	Button buttonMeas,fSize=16,fColor=(1,16019,65535)
-	ValDisplay valdisp0,pos={254.00,401.00},size={89.00,17.00}
-	ValDisplay valdisp0,limits={0,0,0},barmisc={0,100}
-	ValDisplay valdisp0,value= #"root:VanDerPauws:result"
-	SetVariable setvarmaxcurrent,pos={382.00,34.00},size={140.00,18.00},title="Max. Current"
-	SetVariable setvarmaxcurrent,limits={0,0.01,0.001},value= root:VanDerPauw:K2600:nmax
-	SetVariable setvarmincurrent,pos={382.00,58.00},size={140.00,18.00},disable=2,title="Min. Current"
-	SetVariable setvarmincurrent,limits={-0.01,0.01,0.001},value= root:VanDerPauw:K2600:nmin
-	SetVariable setvarpoints,pos={382.00,83.00},size={140.00,18.00},title="Nº of points"
-	SetVariable setvarpoints,limits={-0.01,0.01,0.001},value= root:VanDerPauw:K2600:npoints
-	Button buttonOneMeasure,pos={380.00,126.00},size={144.00,23.00},proc=ButtonProcVDP,title="OnlyOneMeasure"
-	Button buttonOneMeasure,fSize=12,fColor=(32792,65535,1)
-	String fldrSav0= GetDataFolder(1)
-	SetDataFolder root:VanDerPauw:
-	Edit/W=(28,328,224,497)/HOST=#  Resistance,Origin,V_r2
-	ModifyTable format(Point)=1,width(Point)=34,format(Resistance)=3,width(Resistance)=60
-	ModifyTable rgb(Resistance)=(65535,0,0),format(Origin)=3,width(Origin)=50,rgb(Origin)=(40000,10000,30000)
-	ModifyTable format(V_r)=3,width(V_r)=50,rgb(V_r)=(10000,50000,20000)
-	ModifyTable showParts=0xa
-	ModifyTable statsArea=85
-	SetDataFolder fldrSav0
-	RenameWindow #,VDTable
-	SetActiveSubwindow ##
-	String fldrSav1= GetDataFolder(1)
-	SetDataFolder root:VanDerPauw:
-	Display/W=(25,27,360,306)/HOST=#  data[*][1][0] vs data[*][0][0]
-	AppendToGraph data[*][0][1] vs data[*][1][1]
-	AppendToGraph data[*][0][2] vs data[*][1][2]
-	AppendToGraph data[*][0][3] vs data[*][1][3]
-	AppendToGraph data[*][0][4] vs data[*][1][4]
-	AppendToGraph data[*][0][5] vs data[*][1][5]
-	AppendToGraph data[*][0][6] vs data[*][1][6]
-	AppendToGraph data[*][0][7] vs data[*][1][7]
-	AppendToGraph fit_data
-	SetDataFolder fldrSav1
-	ModifyGraph mode(data)=3,mode(data#1)=3,mode(data#2)=3,mode(data#3)=3,mode(data#4)=3
-	ModifyGraph mode(data#5)=3,mode(data#6)=3,mode(data#7)=3
-	ModifyGraph rgb(data#1)=(65535,65535,0),rgb(data#2)=(0,65535,65535),rgb(data#3)=(65535,0,52428)
-	ModifyGraph rgb(data#4)=(39321,1,1),rgb(data#5)=(39321,39321,39321),rgb(data#6)=(0,65535,0)
-	ModifyGraph rgb(data#7)=(0,0,0)
-	ModifyGraph tick=2
-	ModifyGraph zero=2
-	ModifyGraph mirror=1
-	ModifyGraph minor=1
-	ModifyGraph standoff=0
-	ModifyGraph axOffset(left)=-4
-	Label left "Intensity (A)"
-	Label bottom "Voltage (V)"
-	RenameWindow #,VDPGraph
-	SetActiveSubwindow ##
-EndMacro
-
