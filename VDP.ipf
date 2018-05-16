@@ -238,7 +238,7 @@ Function/S Change(mode)
 		case 9:
 			return "" 		//Nothing
 		default: 
-			return "ZAFKPDGJM"		//Estado de error
+			return "ZAFKPDGJM"		//Error state -> an 'X' is drawn
 	endswitch	
 End
 //************************************************************************************************//
@@ -365,10 +365,7 @@ end
 Function ButtonProcVDP(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
 	switch( ba.eventCode )
-		case 2: // mouse up
-			nvar  npoints = root:VanDerPauw:K2600:npoints
-			wave data = root:VanDerPauw:data
-			
+		case 2: // mouse up		
 			strswitch (ba.ctrlname)			
 			case "buttonMeas":
 				VanDerPauws()
@@ -474,8 +471,7 @@ Function initPanel()
 	PauseUpdate; Silent 1		// building window...
 	
 	//Panel
-	DoWindow /K VDPanel
-	//NewPanel /K=0 /W=(773,53,1273,718) as "VDP Panel"
+	DoWindow /K VDPanelfi
 	NewPanel /K=0 /W=(750,53,1289,571) as "VDP Panel"
 	DoWindow /C VDPanel
 	
