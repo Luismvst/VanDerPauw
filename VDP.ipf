@@ -38,9 +38,9 @@ Function VanDerPauws()
 		endif              
 		concatenate	 {ivResult}, data
 		CurveFit/Q /W=1 line, data[][i+1] /X=data[][0] /D	//fit_data is created with /D
-		if(V_r2 < 0.9)//999)
-			doalert, 0, "Beware: fit to I-V curve gives R^2 higher than 0.9999"
-		endif			
+//		if(V_r2 < 0.9)//999) It was really small the error
+//			doalert, 0, "Beware: fit to I-V curve gives R^2 higher than 0.9999"
+//		endif			
 		if(i<1)
 			concatenate/O {$"fit_data"}, fit
 		else 
@@ -48,6 +48,7 @@ Function VanDerPauws()
 		endif
 		RemoveFromGraph /W=VDPanel#VDPGraph $"fit_data"
 		Appendtograph /W=VDPanel#VDPGraph fit_distance vs fit[][i]
+		
 		 
 		Resistance[i] = 1/V_Sigb
 		Origin[i]     = V_Siga
@@ -247,6 +248,27 @@ Function/S Change(mode)
 End
 //************************************************************************************************//
 
+//Measure IV. Sweep I and measure V
+Function/wave IVmeas (nmax, npoints, [nmin])
+
+	variable nmax, npoints
+	variable nmin
+	if (paramisdefault(nmin))
+		nmin= 0
+	endif
+	if (nmin > nmax )
+		string str = "Reestart the device and the program"
+		DoAlert /T="Error. Nmin > Nmax.", 0, str
+		Abort  "Execution aborted.... Restart IGOR"
+	endif
+	make /O/N = (npoints)	ivResult	
+	
+	init_K2600 (mode=0)	//Reset, to be as "clean" as possible
+	sweepI_measV ( nmin, nmax, npoints, ivResult )	
+	
+	return ivResult
+end
+
 //Source current and measure voltage, in 4-probe mode
 Function/wave SweepI_MeasV (imin, imax, npoints, ivResult)
 
@@ -268,7 +290,6 @@ Function/wave SweepI_MeasV (imin, imax, npoints, ivResult)
 	
 	//Working
 	variable step = (imax-imin)/( npoints-1 )
-	make /o/d/n=(10) increment
 	wave increment
 	//wi=imin + step*x
 	variable deviceID = getDeviceID ("K2600")
@@ -343,27 +364,6 @@ Function clear_K2600(deviceID)
 	cmd="smu"+channelV+".nvbuffer2.clear()"  //Clear buffer, in case it contains something
 	sendcmd_GPIB(deviceID,cmd)
 
-end
-
-//Measure IV. Sweep I and measure V
-Function/wave IVmeas (nmax, npoints, [nmin])
-
-	variable nmax, npoints
-	variable nmin
-	if (paramisdefault(nmin))
-		nmin= 0
-	endif
-	if (nmin > nmax )
-		string str = "Reestart the device and the program"
-		DoAlert /T="Error. Nmin > Nmax.", 0, str
-		Abort  "Execution aborted.... Restart IGOR"
-	endif
-	make /O/N = (npoints)	ivResult	
-	
-	init_K2600 (mode=0)	//Reset, to be as "clean" as possible
-	sweepI_measV ( nmin, nmax, npoints, ivResult )	
-	
-	return ivResult
 end
 
 Function ButtonProcVDP(ba) : ButtonControl
@@ -512,7 +512,7 @@ Function initPanel()
 	SetVariable setvarmincurrent,pos={382.00,58.00},size={140.00,18.00},disable=2,title="Min. Current"
 	SetVariable setvarmincurrent,limits={-0.01,0.01,0.001},value= root:VanDerPauw:K2600:nmin
 	SetVariable setvarpoints,pos={382.00,83.00},size={140.00,18.00},title="Nº of points"
-	SetVariable setvarpoints,limits={0,1,120},value= root:VanDerPauw:K2600:npoints
+	SetVariable setvarpoints,limits={0,100,1},value= root:VanDerPauw:K2600:npoints
 	
 	//Text
 	DrawText 255,394,"Total Resistance:"
