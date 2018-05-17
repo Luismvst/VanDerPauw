@@ -24,7 +24,7 @@ Function VanDerPauws()
 	string savedPath = GetDataFolder(1)
 	SetDataFolder root:VanDerPauw
 	nvar result
-	wave data, Resistance, Origin, V_r, increment, fit
+	wave data, Resistance, Origin, V_r, increment, fit, fit_distance
 	
 	variable i
 	for (i = 0; i<8; i+=1) 
@@ -38,14 +38,16 @@ Function VanDerPauws()
 		endif              
 		concatenate	 {ivResult}, data
 		CurveFit/Q /W=1 line, data[][i+1] /X=data[][0] /D	//fit_data is created with /D
-		
+		if(V_r2 < 0.9)//999)
+			doalert, 0, "Beware: fit to I-V curve gives R^2 higher than 0.9999"
+		endif			
 		if(i<1)
 			concatenate/O {$"fit_data"}, fit
 		else 
 			concatenate {$"fit_data"}, fit
 		endif
 		RemoveFromGraph /W=VDPanel#VDPGraph $"fit_data"
-		Appendtograph /W=VDPanel#VDPGraph data[][0] vs fit[][i]
+		Appendtograph /W=VDPanel#VDPGraph fit_distance vs fit[][i]
 		 
 		Resistance[i] = 1/V_Sigb
 		Origin[i]     = V_Siga
@@ -456,10 +458,12 @@ Function VDP_Panel ()
 	make /d/o/n=(8) Resistance, Origin, V_r
 	make /d/o fit
 	make /d/o/n=2 coefs
+	make /d/o/n=(2) fit_distance 
 	
 	
 	variable/G result
 	data = 0; resistance = 0; fit = 0; increment=0; origin = 0; v_r= 0; coefs=0;
+	fit_distance = { 0, nmax }
 	
 	if (ItemsinList (WinList("VDPanel", ";", "")) > 0)
 		SetDrawLayer /W=VDPanel Progfront
