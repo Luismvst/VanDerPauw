@@ -38,12 +38,14 @@ Function VanDerPauws()
 		endif              
 		concatenate	 {ivResult}, data
 		CurveFit/Q /W=1 line, data[][i+1] /X=data[][0] /D	//fit_data is created with /D
+		
 		if(i<1)
 			concatenate/O {$"fit_data"}, fit
 		else 
 			concatenate {$"fit_data"}, fit
 		endif
-		//Appendtograph /W=VDPanel#VDPGraph data[][0] vs fit[][i]
+		RemoveFromGraph /W=VDPanel#VDPGraph $"fit_data"
+		Appendtograph /W=VDPanel#VDPGraph data[][0] vs fit[][i]
 		 
 		Resistance[i] = 1/V_Sigb
 		Origin[i]     = V_Siga
@@ -371,6 +373,7 @@ Function ButtonProcVDP(ba) : ButtonControl
 			
 			strswitch (ba.ctrlname)			
 			case "buttonMeas":
+				//Clear()
 				VanDerPauws()
 				break
 			case "buttonClear":
@@ -391,7 +394,7 @@ Function Clear ()
 	string path = "root:VanDerPauw"
 	DFRef dfr = $path
 	SetDatafolder dfr
-	wave fit, Resistance, Origin, V_r, data, ivResult
+	wave fit, Resistance, Origin, V_r, data, ivResult, increment
 	nvar result
 	variable i
 	for (i=0; i<10; i+=1)
@@ -403,7 +406,7 @@ Function Clear ()
 //	Label /W=$nameDisplay bottom "Voltage (V)"
 //	Label /W=$nameDisplay left "Intensity (A)"	
 
-	data = 0; resistance = 0; fit = 0; origin = 0; v_r= 0; ivResult = 0; result = 0; 
+	data = 0; resistance = 0; fit = 0; origin = 0; v_r= 0; ivResult = 0; result = 0; increment=0;
 	Redimension /N=-1 data, resistance, fit
 //	ModifyGraph  /W=$nameDisplay mirror=1, tick=2, zero=2, minor = 1, mode=3, standoff=0
 	initPanel()
@@ -449,13 +452,14 @@ Function VDP_Panel ()
 	nvar	npoints = 	:K2600:npoints 
 	nvar	nmin = 		:K2600:nmin
 	nvar	nmax =		 	:K2600:nmax 
-	make /d/o/n=(10) data
+	make /d/o/n=(10) data, increment
 	make /d/o/n=(8) Resistance, Origin, V_r
 	make /d/o fit
 	make /d/o/n=2 coefs
 	
+	
 	variable/G result
-	data = 0; resistance = 0; fit = 0; origin = 0; v_r= 0; coefs=0;
+	data = 0; resistance = 0; fit = 0; increment=0; origin = 0; v_r= 0; coefs=0;
 	
 	if (ItemsinList (WinList("VDPanel", ";", "")) > 0)
 		SetDrawLayer /W=VDPanel Progfront
@@ -517,12 +521,13 @@ Function initPanel()
 	string nameDisplay="VDPanel#VDPGraph"
 	Display/K=1/W=(25,27,360,306)/HOST=VDPanel data[*][0] vs data[*][1] 	
 	RenameWindow #,VDPGraph
-	Appendtograph/W=$nameDisplay /C=(65535,65535,0)		data[*][2] vs data[*][0] 
-	Appendtograph/W=$nameDisplay /C=(0,0,65535)			data[*][3] vs data[*][0] 
-	Appendtograph/W=$nameDisplay /C=(65535,0,52428)		data[*][4] vs data[*][0] 
-	Appendtograph/W=$nameDisplay /C=(39321,1,1)			data[*][5] vs data[*][0]  
-	Appendtograph/W=$nameDisplay /C=(39321,39321,39321)	data[*][6] vs data[*][0] 
-	Appendtograph/W=$nameDisplay /C=(0,65535,0)			data[*][7] vs data[*][0]
+	Appendtograph/W=$nameDisplay /C=(65535,65535,0)		data[*][0] vs data[*][2] 
+	Appendtograph/W=$nameDisplay /C=(0,0,65535)			data[*][0] vs data[*][3] 
+	Appendtograph/W=$nameDisplay /C=(65535,0,52428)		data[*][0] vs data[*][4] 
+	Appendtograph/W=$nameDisplay /C=(39321,1,1)			data[*][0] vs data[*][5]  
+	Appendtograph/W=$nameDisplay /C=(39321,39321,39321)	data[*][0] vs data[*][6] 
+	Appendtograph/W=$nameDisplay /C=(0,65535,0)			data[*][0] vs data[*][7]
+	Appendtograph/W=$nameDisplay /C=(0,65535,0)			data[*][0] vs data[*][8]
 	Label /W=$nameDisplay bottom "Voltage (V)"
 	Label /W=$nameDisplay left "Intensity (A)"	
 	ModifyGraph  /W=$nameDisplay mirror=1, tick=2, zero=2, minor = 1, mode=3, standoff=0
