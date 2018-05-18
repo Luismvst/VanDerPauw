@@ -279,7 +279,7 @@ Function/wave SweepI_MeasV (imin, imax, npoints, ivResult)
 	
 	variable inc, i
 	
-	string channelI = "a"
+	string channelI = "a"  
 	string channelV = "b"
 	string cmd
 	
