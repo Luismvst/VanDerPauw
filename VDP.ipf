@@ -33,7 +33,7 @@ Function VanDerPauws()
 //			MBox_Change(com,2)	
 //		endif
 
-		wave ivResult = IVmeas (nmax, npoints)
+		wave ivResult = IVmeas (nmax, 10)// npoints)
 		if (i==0)
 			concatenate/O {increment}, data  
 		endif              
