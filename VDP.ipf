@@ -6,7 +6,7 @@
 #include "IV_Lab_v1"
 
 Menu "Van der Pauws"
-	//ctrl + 'ç' Displays the Panel
+	//Ctrl + 'ç' Displays the Panel
 	"Panel/ç", /Q, VDP_Panel ()
 	"Initialize",/Q, init()
 	"Close Keithley",/Q,  close_K2600()
@@ -25,20 +25,21 @@ Function VanDerPauws()
 	SetDataFolder root:VanDerPauw
 	nvar result
 	wave data, Resistance, Origin, V_r, increment, fit, fit_distance
-	
+	fit_distance = { 0, nmax }
 	variable i
 	for (i = 0; i<8; i+=1) 
-//	MBox_Change(com,i) 	
-		if (i == 0 )
-			MBox_Change(com,2)	
-		endif
+		MBox_Change(com,i+1) 	
+//		if (i == 0 )
+//			MBox_Change(com,2)	
+//		endif
+
 		wave ivResult = IVmeas (nmax, npoints)
 		if (i==0)
 			concatenate/O {increment}, data  
 		endif              
 		concatenate	 {ivResult}, data
 		CurveFit/Q /W=1 line, data[][i+1] /X=data[][0] /D	//fit_data is created with /D
-//		if(V_r2 < 0.9)//999) It was really small the error
+//		if(V_r2 < 0.9999) 
 //			doalert, 0, "Beware: fit to I-V curve gives R^2 higher than 0.9999"
 //		endif			
 		if(i<1)
@@ -97,7 +98,7 @@ Function init ()
 End
 
 Function init_K2600([mode])
-	//mode is used to print on history commands that Keithley has been initialized
+	//mode is used to print on history commands Keithley has been initialized
 	//If mode == 0, NO PRINT
 	variable mode
 	if (paramisdefault(mode))
@@ -114,12 +115,11 @@ Function init_K2600([mode])
 	InitBoard_GPIB(0)
 	InitDevice_GPIB(0,26)
 	
-	variable/G   npoints = 10
-	variable/G 	nmin	= 0
-	variable/G 	nmax  = 0.01	
-	
 	if (mode)
 		print "Keithley initialized"
+		variable/G   npoints = 10
+		variable/G 	nmin	= 0
+		variable/G 	nmax  = 0.01	
 	endif
 	SetDataFolder saveDFR
 End
@@ -283,7 +283,7 @@ Function/wave SweepI_MeasV (imin, imax, npoints, ivResult)
 	string channelV = "b"
 	string cmd
 	
-	variable probe=2
+	variable probe=1
 	variable vlimit = 5
 	variable nplc = 1
 	variable delay = 1
@@ -300,11 +300,13 @@ Function/wave SweepI_MeasV (imin, imax, npoints, ivResult)
 	
 	configK2600_GPIB(deviceID,2,channelV,probe,vlimit,nplc,delay) // 2 (2nd argument) = measure voltage
 
+	cmd="smu"+channelV+".source.output = smu"+channelV+".OUTPUT_ON"
+	sendcmd_GPIB(deviceID,cmd)	
+
 	cmd="smu"+channelI+".source.output = smu"+channelI+".OUTPUT_ON"
 	sendcmd_GPIB(deviceID,cmd)
 	
-	cmd="smu"+channelV+".source.output = smu"+channelV+".OUTPUT_ON"
-	sendcmd_GPIB(deviceID,cmd)	
+
 	
 	string target
 	for (i=0; i<(npoints); i+=1)
@@ -396,8 +398,9 @@ Function Clear ()
 	string path = "root:VanDerPauw"
 	DFRef dfr = $path
 	SetDatafolder dfr
-	wave fit, Resistance, Origin, V_r, data, ivResult, increment
+	wave fit, Resistance, Origin, V_r, data, ivResult, increment, fit_distance
 	nvar result
+	nvar	nmax =	 :K2600:nmax 
 	variable i
 	for (i=0; i<10; i+=1)
 		RemoveAllTraces()
@@ -409,6 +412,7 @@ Function Clear ()
 //	Label /W=$nameDisplay left "Intensity (A)"	
 
 	data = 0; resistance = 0; fit = 0; origin = 0; v_r= 0; ivResult = 0; result = 0; increment=0;
+	fit_distance = { 0, nmax }
 	Redimension /N=-1 data, resistance, fit
 //	ModifyGraph  /W=$nameDisplay mirror=1, tick=2, zero=2, minor = 1, mode=3, standoff=0
 	initPanel()
@@ -441,9 +445,9 @@ Function VDP_Panel ()
 		string smsg = "You have to initialize first.\n"
 		smsg += "Do you want to initialize?\n"
 		DoAlert /T="Unable to open the program" 1, smsg
-		if (V_flag == 2)		//Clock No
+		if (V_flag == 2)		//Clicked <"NO">
 			Abort "Execution aborted.... Restart IGOR"
-		elseif (V_flag == 1)	//Click yes
+		elseif (V_flag == 1)	//Clicked <"YES">
 			init()
 		endif
 	endif
@@ -484,7 +488,7 @@ Function initPanel()
 	//Panel
 	DoWindow /K VDPanel
 	//NewPanel /K=0 /W=(773,53,1273,718) as "VDP Panel"
-	NewPanel /K=0 /W=(750,53,1289,571) as "VDP Panel"
+	NewPanel /K=0 /W=(306,53,709,571) as "VDP Panel"
 	DoWindow /C VDPanel
 	
 	//Buttons
@@ -507,17 +511,17 @@ Function initPanel()
 	RenameWindow #,VDTable
 	
 	//SetVar
-	SetVariable setvarmaxcurrent,pos={382.00,34.00},size={140.00,18.00},title="Max. Current"
-	SetVariable setvarmaxcurrent,limits={0,0.01,0.001},value= root:VanDerPauw:K2600:nmax
-	SetVariable setvarmincurrent,pos={382.00,58.00},size={140.00,18.00},disable=2,title="Min. Current"
-	SetVariable setvarmincurrent,limits={-0.01,0.01,0.001},value= root:VanDerPauw:K2600:nmin
-	SetVariable setvarpoints,pos={382.00,83.00},size={140.00,18.00},title="Nº of points"
-	SetVariable setvarpoints,limits={0,100,1},value= root:VanDerPauw:K2600:npoints
-	
+	SetVariable setvarmaxcurrent,pos={237.00,365.00},size={140.00,18.00},title="Max. Current"
+	SetVariable setvarmaxcurrent,limits={0,0.5,0.01},value= root:VanDerPauw:K2600:nmax
+//	SetVariable setvarmincurrent,pos={382.00,58.00},size={140.00,18.00},disable=2,title="Min. Current"
+//	SetVariable setvarmincurrent,limits={-0.01,0.01,0.001},value= root:VanDerPauw:K2600:nmin
+//	SetVariable setvarpoints,pos={382.00,83.00},size={140.00,18.00},title="Nº of points"
+//	SetVariable setvarpoints,limits={0,100,1},disable=2, value= root:VanDerPauw:K2600:npoints
+//	
 	//Text
-	DrawText 255,394,"Total Resistance:"
+	DrawText 252,409,"Total Resistance:"
 	
-	ValDisplay valdisp0,pos={254.00,401.00}, size={89.00,17.00}
+	ValDisplay valdisp0,pos={253.00,420.00}, size={89.00,17.00}
 	ValDisplay valdisp0,barmisc={0,100}
 	ValDisplay valdisp0,value=#"root:VanDerPauw:result"
 	
