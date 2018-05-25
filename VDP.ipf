@@ -94,7 +94,7 @@ End
 //Initialize both keithley and magic box
 Function init ()
 	init_K2600()
-	init_MBox ()
+	init_MBox()
 End
 
 Function init_K2600([mode])
@@ -146,15 +146,19 @@ Function  close_K2600()
 	DevClearList(0,26)
 End
 
+//In a future it will be merged with Mario´s InitOpenSerial() 
 Function init_OpenSerial (com, Device)
 
 	string com, Device
 	string cmd, DeviceCommands
+	//string reply
 	variable flag
-	string/G sports=getSerialPorts()
+	string sports=getSerialPorts()
 		print sports
 	if(StringMatch(Device,"MagicBox"))	//It looks for the Word in the DeviceStr
 		DeviceCommands=" baud=1200, stopbits=1, databits=8, parity=0"
+	elseif (StringMatch(Device, "LedController"))
+		DeviceCommands=" baud=9600, stopbits=1, databits=8, parity=0"
 	endif
 		// is the port available in the computer?
 	if (WhichListItem(com,sports)!=-1)
