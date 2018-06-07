@@ -9,6 +9,8 @@ Menu "Van der Pauws"
 	//Ctrl + 'ç' Displays the Panel
 	"Panel/ç", /Q, VDP_Panel ()
 	"Initialize",/Q, init()
+	"Init_Box", /Q, init_MBox()
+	"COMPortsUsing?", /Q, getSerialPorts()
 	"Close Keithley",/Q,  close_K2600()
 	End
 End
@@ -133,7 +135,7 @@ Function init_MBox()
 	DFRef dfr = $path
 	SetDatafolder dfr
 	
-	string /G com	= "COM5"
+	string /G com	= "COM1"
 	string /G Device 	= "MagicBox"
 	
 	init_OpenSerial (com, Device)	
